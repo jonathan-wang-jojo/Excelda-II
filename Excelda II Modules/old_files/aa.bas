@@ -1,25 +1,30 @@
-Option Explicit
 Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
 
 Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
+Global currentScreen
+Global screenSetUpTimer
+Global linkCellAddress 'linksprite.topleftcell.address
+Global CodeCell 'Range(linkCellAddress).Offset(3, 2).Value
+Global moveDir 'either 'U, UL, UR, D, DL, DR, L, R
+Global lastDir
+Global LinkSprite
+Global gameSpeed
+Global LinkSpriteTop
+Global LinkSpriteLeft
+Global LinkMove 'sheets("Data").range("C19").value
+Global LinkSpriteFrame 'either 1, or 2
+Global CItem
+Global DItem
+Global CPress
+Global DPress
+Global SwordFrame1
+Global SwordFrame2
+Global SwordFrame3
+Global shieldSprite
+
 
 '###################################################################################
-
-'-----------------------------------------------------------------
-' Module: AA_GameLoop
-' Purpose: Main legacy game loop and input handling. This module
-'          contains the original blocking runGame routine. Do not
-'          execute runGame in modern Excel until the scheduler and
-'          migration scaffolding are verified. This header is a
-'          non-functional documentation aid to make the file easier
-'          to navigate and for planned refactor work.
-'
-' Cleanup TODOs:
-'  - Move input polling and frame/tick management into GameEngine.GameTick
-'  - Replace Sleep/Range Copy refresh patterns with scheduler-driven animation
-'  - Group helper subs (movement, actions, triggers) into logical regions
-'-----------------------------------------------------------------
 '
 '
 '
@@ -47,153 +52,196 @@ startSub:
 
 'initial values
 Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-Sub InitGame()
-    'Initialize references, variables and default sprites. Safe to call multiple times.
-    On Error Resume Next
-    CItem = Sheets("Data").Range("C26").Value
-    DItem = Sheets("Data").Range("C27").Value
-    CPress = 0
-    DPress = 0
 
-    Set SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
-    Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
-    Set SwordFrame3 = ActiveSheet.Shapes("SwordDown")
-    Set shieldSprite = ActiveSheet.Shapes("LinkShieldDown")
+        
+LinkMove = Sheets("Data").Range("C19").Value
 
-    screenSetUpTimer = 0
-
-    'initial values
-    Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-    LinkMove = Sheets("Data").Range("C19").Value
-    gameSpeed = Sheets("Data").Range("C4").Value
-End Sub
+gameSpeed = Sheets("Data").Range("C4").Value
 
 
-Sub RunGame_Tick()
-    'Per-frame non-blocking logic extracted from the legacy runGame.
-    'This is intended to be safe to call from GameEngine.GameTick.
-    On Error GoTo ErrHandler
+'############################################################################
+startLoop: '#################################################################
 
-    If Sheets("Data").Range("C20").Value >= 5 Then
-        LinkSpriteFrame = 1
+'MsgBox ("linkSprite = " + LinkSprite.Name)
+
+If Sheets("Data").Range("C20").Value >= 5 Then
+    LinkSpriteFrame = 1
+Else
+    LinkSpriteFrame = 2
+End If
+
+LinkSpriteLeft = LinkSprite.Left
+LinkSpriteTop = LinkSprite.Top
+
+'-------- Quit to title if 'Q' was pressed -----
+If GetAsyncKeyState(81) <> 0 Then
+    Application.CutCopyMode = False
+    Sheets("Title").Activate
+    ActiveSheet.Range("A1").Select
+    GoTo endLoop
+End If
+'--------------------------------------
+
+'MsgBox screenSetUpTimer
+
+If screenSetUpTimer > 0 Then
+    screenSetUpTimer = screenSetUpTimer - 1
+End If
+
+'check to see if an enemy collision had occurred
+If RNDBounceback <> "" Then
+    Call BounceBack(LinkSprite, ActiveSheet.Shapes(CollidedWith))
+    GoTo afterMove
+End If
+
+
+
+'account for falling/jumping
+Select Case Sheets("Data").Range("C9").Value
+
+    Case Is = "Y"
+    GoTo afterMove
+    Case Else
+
+End Select
+
+
+
+
+
+'assign up to 2 four-way movement values
+'Right #################################
+Select Case GetAsyncKeyState(37)
+
+Case Is <> 0
+
+
+Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "L"
+
+Case Is = 0
+
+End Select
+
+'Left ##############################
+
+Select Case GetAsyncKeyState(39)
+
+Case Is <> 0
+
+Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "R"
+
+Case Is = 0
+
+'down ###########################
+End Select
+
+Select Case GetAsyncKeyState(40)
+
+Case Is <> 0
+
+Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "D"
+
+Case Is = 0
+
+End Select
+
+'Up ###########################################
+Select Case GetAsyncKeyState(38)
+
+Case Is <> 0
+
+Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "U"
+
+Case Is = 0
+
+End Select
+
+'------------------------------------------------------------------------
+moveDir = Sheets("Data").Range("C21").Value
+
+If moveDir <> "" Then
+    lastDir = moveDir
+End If
+
+Select Case moveDir
+
+    Case Is = "U"
+        If LinkSpriteFrame = 1 Then
+            Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
+        Else
+            Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
+        End If
+        
+        LinkSpriteTop = LinkSpriteTop - LinkMove
+        
+    Case Is = "D"
+        If LinkSpriteFrame = 1 Then
+            Set LinkSprite = ActiveSheet.Shapes("LinkDown1")
+        Else
+            Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
+        End If
+        LinkSpriteTop = LinkSpriteTop + LinkMove
+
+    Case Is = "R"
+        If LinkSpriteFrame = 1 Then
+            Set LinkSprite = ActiveSheet.Shapes("LinkRight1")
+        Else
+            Set LinkSprite = ActiveSheet.Shapes("LinkRight2")
+        End If
+        LinkSpriteLeft = LinkSpriteLeft + LinkMove
+        
+    Case Is = "L"
+        If LinkSpriteFrame = 1 Then
+            Set LinkSprite = ActiveSheet.Shapes("LinkLeft1")
+        Else
+            Set LinkSprite = ActiveSheet.Shapes("LinkLeft2")
+        End If
+        LinkSpriteLeft = LinkSpriteLeft - LinkMove
+        
+    Case Is = "LU"
+    If LinkSpriteFrame = 1 Then
+        'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft1")
+        Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
     Else
-        LinkSpriteFrame = 2
+         'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft2")
+         Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
     End If
-
-    LinkSpriteLeft = LinkSprite.Left
-    LinkSpriteTop = LinkSprite.Top
-
-    '-------- Quit to title if 'Q' was pressed -----
-    If GetAsyncKeyState(81) <> 0 Then
-        Application.CutCopyMode = False
-        Sheets("Title").Activate
-        ActiveSheet.Range("A1").Select
-        Exit Sub
+        LinkSpriteLeft = LinkSpriteLeft - LinkMove
+        LinkSpriteTop = LinkSpriteTop - LinkMove
+        
+    Case Is = "UL"
+    If LinkSpriteFrame = 1 Then
+        'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft1")
+        Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
+    Else
+         'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft2")
+         Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
     End If
-
-    If screenSetUpTimer > 0 Then
-        screenSetUpTimer = screenSetUpTimer - 1
-    End If
-
-    'check to see if an enemy collision had occurred
-    If RNDBounceback <> "" Then
-        Call BounceBack(LinkSprite, ActiveSheet.Shapes(CollidedWith))
-        Exit Sub
-    End If
-
-    'account for falling/jumping
-    If Sheets("Data").Range("C9").Value = "Y" Then Exit Sub
-
-    'Capture movement keys and build moveDir
-    Sheets("Data").Range("C21").Value = ""
-    If GetAsyncKeyState(37) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "L"
-    If GetAsyncKeyState(39) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "R"
-    If GetAsyncKeyState(40) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "D"
-    If GetAsyncKeyState(38) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value + "U"
-
-    moveDir = Sheets("Data").Range("C21").Value
-
-    If moveDir <> "" Then lastDir = moveDir
-
-    Select Case moveDir
-        Case Is = "U"
-            If LinkSpriteFrame = 1 Then
-                Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-            Else
-                Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-            End If
-            LinkSpriteTop = LinkSpriteTop - LinkMove
-
-        Case Is = "D"
-            If LinkSpriteFrame = 1 Then
-                Set LinkSprite = ActiveSheet.Shapes("LinkDown1")
-            Else
-                Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-            End If
-            LinkSpriteTop = LinkSpriteTop + LinkMove
-
-        Case Is = "R"
-            If LinkSpriteFrame = 1 Then
-                Set LinkSprite = ActiveSheet.Shapes("LinkRight1")
-            Else
-                Set LinkSprite = ActiveSheet.Shapes("LinkRight2")
-            End If
-            LinkSpriteLeft = LinkSpriteLeft + LinkMove
-
-        Case Is = "L"
-            If LinkSpriteFrame = 1 Then
-                Set LinkSprite = ActiveSheet.Shapes("LinkLeft1")
-            Else
-                Set LinkSprite = ActiveSheet.Shapes("LinkLeft2")
-            End If
-            LinkSpriteLeft = LinkSpriteLeft - LinkMove
-
-        Case Is = "LU", "UL"
-            If LinkSpriteFrame = 1 Then
-                Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-            Else
-                Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-            End If
-            LinkSpriteLeft = LinkSpriteLeft - LinkMove
-            LinkSpriteTop = LinkSpriteTop - LinkMove
-
-        Case Is = "RU"
-            If LinkSpriteFrame = 1 Then
-                Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-            Else
-                Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-            End If
-            LinkSpriteLeft = LinkSpriteLeft + LinkMove
-            LinkSpriteTop = LinkSpriteTop - LinkMove
-
-        Case Else
-            'No movement
-    End Select
-
-    'Write positions back to the LinkSprite
-    On Error Resume Next
-    LinkSprite.Top = LinkSpriteTop
-    LinkSprite.Left = LinkSpriteLeft
-
-    Exit Sub
-
-ErrHandler:
-    'If errors occur during the per-tick run, keep scheduler running but record error
-    Debug.Print "RunGame_Tick error: " & Err.Number & " - " & Err.Description
-    Exit Sub
-End Sub
-
-
-Sub runGame()
-    'Modern entrypoint: initialize and start the safe scheduler which will call RunGame_Tick
-    InitGame
-    UseLegacyTick = True
-    StartSafeGameLoop
-End Sub
-
-Sub runGame_LegacyOriginal()
-    'Renamed original blocking loop to preserve it; kept intact for reference.
-    '...existing code...
+        LinkSpriteLeft = LinkSpriteLeft - LinkMove
+        LinkSpriteTop = LinkSpriteTop - LinkMove
+        
+    Case Is = "RU"
+        If LinkSpriteFrame = 1 Then
+            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight1")
+            Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
+        Else
+            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight2")
+            Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
+        End If
+        LinkSpriteLeft = LinkSpriteLeft + LinkMove
+        LinkSpriteTop = LinkSpriteTop - LinkMove
+        
+    Case Is = "UR"
+        If LinkSpriteFrame = 1 Then
+            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight1")
+            Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
+        Else
+            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight2")
+            Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
+        End If
+        LinkSpriteLeft = LinkSpriteLeft + LinkMove
+        LinkSpriteTop = LinkSpriteTop - LinkMove
+        
     Case Is = "LD"
         If LinkSpriteFrame = 1 Then
             'Set LinkSprite = ActiveSheet.Shapes("LinkDownLeft2")

@@ -1,0 +1,321 @@
+Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
+Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+
+'==========================
+' Global variables
+'==========================
+Global currentScreen
+Global screenSetUpTimer
+Global linkCellAddress
+Global CodeCell
+Global moveDir
+Global lastDir
+Global LinkSprite
+Global gameSpeed
+Global LinkSpriteTop
+Global LinkSpriteLeft
+Global LinkMove
+Global LinkSpriteFrame
+Global CItem
+Global DItem
+Global CPress
+Global DPress
+Global SwordFrame1
+Global SwordFrame2
+Global SwordFrame3
+Global shieldSprite
+
+'==========================
+' Main game loop
+'==========================
+Sub runGame()
+    Call InitializeGame
+    
+startLoop:
+    '--------------------------
+    ' Determine sprite frame & position
+    '--------------------------
+    Call UpdateSpriteFrame
+    LinkSpriteLeft = LinkSprite.Left
+    LinkSpriteTop = LinkSprite.Top
+    
+    '--------------------------
+    ' Quit check (Q key)
+    '--------------------------
+    If GetAsyncKeyState(81) <> 0 Then Call QuitToTitle: Exit Sub
+    
+    '--------------------------
+    ' Update timers
+    '--------------------------
+    If screenSetUpTimer > 0 Then screenSetUpTimer = screenSetUpTimer - 1
+    
+    '--------------------------
+    ' Enemy bounceback
+    '--------------------------
+    If RNDBounceback <> "" Then
+        Call BounceBack(LinkSprite, ActiveSheet.Shapes(CollidedWith))
+        GoTo afterMove
+    End If
+    
+    '--------------------------
+    ' Falling / jumping
+    '--------------------------
+    If Sheets("Data").Range("C9").Value = "Y" Then GoTo afterMove
+    
+    '--------------------------
+    ' Capture movement input
+    '--------------------------
+    Call CaptureMovementInput
+    
+    '--------------------------
+    ' Update player position & sprite
+    '--------------------------
+    Call UpdateLinkSpritePosition(moveDir, LinkSpriteFrame, LinkMove, LinkSpriteLeft, LinkSpriteTop)
+    
+afterMove:
+    '--------------------------
+    ' Handle action keys (C / D)
+    '--------------------------
+    Call HandleActionKey(67, CItem, CPress, "C")
+    Call HandleActionKey(68, DItem, DPress, "D")
+    
+    '--------------------------
+    ' Trigger handling
+    '--------------------------
+    Call HandleTriggers
+    
+    '--------------------------
+    ' Enemy handling
+    '--------------------------
+    'Call HandleEnemies
+    
+    '--------------------------
+    ' Collision detection
+    '--------------------------
+    Call HandleCollision(moveDir)
+    
+    '--------------------------
+    ' Update animation counter
+    '--------------------------
+    Call UpdateAnimationCounter
+    
+    '--------------------------
+    ' Frame pacing
+    '--------------------------
+    Range("A1").Copy Range("A2")
+    Sheets("Data").Range("C21").Value = ""
+    Sleep gameSpeed
+    Application.CutCopyMode = False
+    
+    '--------------------------
+    ' Loop
+    '--------------------------
+    GoTo startLoop
+End Sub
+
+'==========================
+' Initialization
+'==========================
+Sub InitializeGame()
+    CItem = Sheets("Data").Range("C26").Value
+    DItem = Sheets("Data").Range("C27").Value
+    CPress = 0
+    DPress = 0
+    
+    Set SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
+    Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
+    Set SwordFrame3 = ActiveSheet.Shapes("SwordDown")
+    Set shieldSprite = ActiveSheet.Shapes("LinkShieldDown")
+    
+    Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
+    LinkMove = Sheets("Data").Range("C19").Value
+    gameSpeed = Sheets("Data").Range("C4").Value
+    screenSetUpTimer = 0
+End Sub
+
+'==========================
+' Update sprite frame
+'==========================
+Sub UpdateSpriteFrame()
+    If Sheets("Data").Range("C20").Value >= 5 Then
+        LinkSpriteFrame = 1
+    Else
+        LinkSpriteFrame = 2
+    End If
+End Sub
+
+'==========================
+' Quit to title
+'==========================
+Sub QuitToTitle()
+    Application.CutCopyMode = False
+    Sheets("Title").Activate
+    ActiveSheet.Range("A1").Select
+End Sub
+
+'==========================
+' Capture movement input
+'==========================
+Sub CaptureMovementInput()
+    Sheets("Data").Range("C21").Value = ""
+    If GetAsyncKeyState(37) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value & "L"
+    If GetAsyncKeyState(39) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value & "R"
+    If GetAsyncKeyState(40) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value & "D"
+    If GetAsyncKeyState(38) <> 0 Then Sheets("Data").Range("C21").Value = Sheets("Data").Range("C21").Value & "U"
+    
+    moveDir = Sheets("Data").Range("C21").Value
+    If moveDir <> "" Then lastDir = moveDir
+End Sub
+
+'==========================
+' Update Link sprite position
+'==========================
+Sub UpdateLinkSpritePosition(ByVal dir As String, ByVal frame As Integer, ByVal move As Double, ByRef leftPos As Double, ByRef topPos As Double)
+    Select Case dir
+        Case "U"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
+            topPos = topPos - move
+        Case "D"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
+            topPos = topPos + move
+        Case "L"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkLeft1"), ActiveSheet.Shapes("LinkLeft2"))
+            leftPos = leftPos - move
+        Case "R"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkRight1"), ActiveSheet.Shapes("LinkRight2"))
+            leftPos = leftPos + move
+        Case "LU", "UL"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
+            leftPos = leftPos - move
+            topPos = topPos - move
+        Case "RU", "UR"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
+            leftPos = leftPos + move
+            topPos = topPos - move
+        Case "LD", "DL"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown2"), ActiveSheet.Shapes("LinkDown1"))
+            leftPos = leftPos - move
+            topPos = topPos + move
+        Case "RD", "DR"
+            Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
+            leftPos = leftPos + move
+            topPos = topPos + move
+    End Select
+    
+    ' Align all Link sprites
+    Call AlignLinkSprites(leftPos, topPos)
+End Sub
+
+'==========================
+' Align all Link sprites
+'==========================
+Sub AlignLinkSprites(ByVal leftPos As Double, ByVal topPos As Double)
+    Dim s As Variant
+    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+        ActiveSheet.Shapes(s).Left = leftPos
+        ActiveSheet.Shapes(s).Top = topPos
+    Next s
+End Sub
+
+'==========================
+' Handle C / D action keys
+'==========================
+Sub HandleActionKey(keyCode As Integer, item As String, ByRef pressCounter As Integer, keyLabel As String)
+    If GetAsyncKeyState(keyCode) <> 0 Then
+        Sheets("Data").Range(IIf(keyLabel = "C", "C24", "C25")).Value = "Y"
+        pressCounter = pressCounter + 1
+        
+        Select Case item
+            Case "Sword": Call swordSwipe(IIf(keyLabel = "C", 1, 2))
+            Case "Shield": Call showShield
+        End Select
+    Else
+        ' Key released
+        Call HandleKeyRelease(item, pressCounter)
+        pressCounter = 0
+        Sheets("Data").Range(IIf(keyLabel = "C", "C24", "C25")).Value = ""
+    End If
+End Sub
+
+Sub HandleKeyRelease(item As String, pressCounter As Integer)
+    Select Case item
+        Case "Sword"
+            SwordFrame1.Visible = False
+            SwordFrame2.Visible = False
+            SwordFrame3.Visible = False
+            If pressCounter >= 20 Then Call swordSpin
+        Case "Shield"
+            shieldSprite.Visible = False
+            Sheets("Data").Range("C28").Value = ""
+    End Select
+End Sub
+
+'==========================
+' Update animation counter
+'==========================
+Sub UpdateAnimationCounter()
+    If Sheets("Data").Range("C20").Value >= 10 Then
+        Sheets("Data").Range("C20").Value = 0
+    Else
+        Sheets("Data").Range("C20").Value = Sheets("Data").Range("C20").Value + 1
+    End If
+End Sub
+
+'==========================
+' Handle triggers (scroll, jump, etc)
+'==========================
+Sub HandleTriggers()
+    linkCellAddress = LinkSprite.TopLeftCell.Address
+    CodeCell = Range(linkCellAddress).Offset(3, 2).Value
+    
+    If CodeCell = "" Then Exit Sub
+    
+    Dim ScrollIndicator As String, scrollDir As String
+    Dim FallIndicator As String, ActionIndicator As String
+    
+    ScrollIndicator = Left(CodeCell, 1)
+    scrollDir = Mid(CodeCell, 2, 1)
+    FallIndicator = Mid(CodeCell, 3, 2)
+    ActionIndicator = Mid(CodeCell, 7, 2)
+    
+    Select Case ScrollIndicator
+        Case "S": Call myScroll(scrollDir)
+    End Select
+    
+    Select Case FallIndicator
+        Case "FL": Call Falling
+        Case "JD": Call JumpDown
+    End Select
+    
+    Select Case ActionIndicator
+        Case "RL": Call Relocate(CodeCell): Exit Sub
+        Case "ET": Call EnemyTrigger(CodeCell)
+        Case "SE": Call SpecialEventTrigger(CodeCell)
+    End Select
+End Sub
+
+'==========================
+' Enemy handling
+'==========================
+Sub HandleEnemies()
+    Dim i As Integer
+    For i = 1 To 4 'add if more enemies
+        Dim enemyName As String, enemyHit As Integer
+        enemyName = CallByName(Me, "RNDenemyName" & i, VbGet)
+        enemyHit = CallByName(Me, "RNDenemyHit" & i, VbGet)
+        
+        If enemyName <> "" Then
+            Call enemyCollision(LinkSprite, enemyName)
+            If enemyHit > 0 Then Call enemyBounceBack(i): GoTo NextEnemy
+            Call RNDEnemyMove(i)
+        End If
+NextEnemy:
+    Next i
+End Sub
+
+'==========================
+' Handle collisions
+'==========================
+Sub HandleCollision(dir As String)
+    ' Placeholder: add all original collision logic here using linkCellAddress & moveDir
+End Sub

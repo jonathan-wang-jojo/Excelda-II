@@ -1,26 +1,107 @@
-Option Explicit
 Attribute VB_Name = "AH_Enemies"
+'-------------------------------
+'Enemy 1
+
+Global RNDenemyName1
+Global RNDenemyFrame1_1
+Global RNDenemyFrame1_2
+Global RNDenemyInitialCount1
+Global RNDenemyCount1
+
+Global RNDenemyDir1
+Global RNDenemySpeed1
+Global RNDenemyBehaviour1
+Global RNDenemyChangeRotation1
+
+Global RNDenemyCanShoot1
+Global RNDenemyChargeSpeed1
+
+Global RNDenemyCanCollide1
+Global RNDenemyCollisionDamage1
+Global RNDenemyShootDamage1
+Global RNDenemyChargeDamage1
+
+Global RNDenemyHit1
+Global RNDenemyLife1
+
+'-------------------------------
+'Projectile 1
+
+Global projectileName1
+Global projectileSpeed1
+Global projectileBehaviour1
+Global projectileDir1
+
+'-------------------------------
+'Enemy 2
+Global RNDenemyName2
+Global RNDenemyFrame2_1
+Global RNDenemyFrame2_2
+Global RNDenemyInitialCount2
+Global RNDenemyCount2
+
+Global RNDenemyDir2
+Global RNDenemySpeed2
+Global RNDenemyBehaviour2
+Global RNDenemyChangeRotation2
+
+Global RNDenemyCanShoot2
+Global RNDenemyChargeSpeed2
+
+Global RNDenemyCanCollide2
+Global RNDenemyCollisionDamage2
+Global RNDenemyShootDamage2
+Global RNDenemyChargeDamage2
+Global RNDenemyHit2
+Global RNDenemyLife2
+
+'-------------------------------
+'Enemy 3
+Global RNDenemyName3
+Global RNDenemyFrame3_1
+Global RNDenemyFrame3_2
+Global RNDenemyInitialCount3
+Global RNDenemyCount3
+
+Global RNDenemyDir3
+Global RNDenemySpeed3
+Global RNDenemyBehaviour3
+Global RNDenemyChangeRotation3
+
+Global RNDenemyCanShoot3
+Global RNDenemyChargeSpeed3
+
+Global RNDenemyCanCollide3
+Global RNDenemyCollisionDamage3
+Global RNDenemyShootDamage3
+Global RNDenemyChargeDamage3
+Global RNDenemyHit3
+Global RNDenemyLife3
+'-------------------------------
+'Enemy 4
+Global RNDenemyName4
+Global RNDenemyFrame4_1
+Global RNDenemyFrame4_2
+Global RNDenemyInitialCount4
+Global RNDenemyCount4
+
+Global RNDenemyDir4
+Global RNDenemySpeed4
+Global RNDenemyBehaviour4
+Global RNDenemyChangeRotation4
+
+Global RNDenemyCanShoot4
+Global RNDenemyChargeSpeed4
+
+Global RNDenemyCanCollide4
+Global RNDenemyCollisionDamage4
+Global RNDenemyShootDamage4
+Global RNDenemyChargeDamage4
+Global RNDenemyHit4
+Global RNDenemyLife4
 
 
 '####################### Octoroks ###################################################
-
-'-----------------------------------------------------------------
-' Section: Octorok show/hide/reset
-' Purpose: Grouped enemy spawn helpers for Octoroks. Consider
-'          consolidating duplicates into parameterized routines.
-'-----------------------------------------------------------------
-
-'-----------------------------------------------------------------
-' Module: AH_Enemies
-' Purpose: Enemy show/hide and reset helpers. Uses legacy globals
-'          to configure enemy sprites. Plan: migrate enemy slots to
-'          Enemy class instances and consolidate duplicated logic.
-'
-' Cleanup TODOs:
-'  - Consolidate repeated show/hide subs into parameterized routines
-'  - Replace direct Sheets("Data") reads with a single loader
-'  - Remove obsolete comments and grouped legacy markers
-'-----------------------------------------------------------------
 
 Sub showOctorok01()
 

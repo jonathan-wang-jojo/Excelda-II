@@ -1,4 +1,3 @@
-Option Explicit
 Attribute VB_Name = "AI_Friendlies"
 Sub showMarin01()
 

@@ -1,6 +1,15 @@
-Option Explicit
 Attribute VB_Name = "AJ_Triggers"
 Public TriggerCel
+
+Global CollidedWith
+Global RNDBounceback
+
+Global SwordHit
+
+Global RNDEnemyBounceback1
+Global RNDEnemyBounceback2
+Global RNDEnemyBounceback3
+Global RNDEnemyBounceback4
 
 
 

@@ -1,4 +1,3 @@
-'Option Explicit
 Attribute VB_Name = "AK_Objects"
 '###################################################################################
 '#
@@ -242,14 +241,6 @@ End If
 
 
 End Sub
-
-'-----------------------------------------------------------------
-' Module: AK_Objects
-' Purpose: Object interactions (bushes, rocks, interactive map items)
-' Cleanup TODOs:
-'  - Reduce repeated bush handling by using arrays/collections
-'  - Remove long inline Reset/position logic into smaller helpers
-'-----------------------------------------------------------------
 
 
 Sub resetBushes(whichBush)
