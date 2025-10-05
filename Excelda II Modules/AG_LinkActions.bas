@@ -1,4 +1,3 @@
-'Option Explicit
 Attribute VB_Name = "AG_LinkActions"
 '##
 '

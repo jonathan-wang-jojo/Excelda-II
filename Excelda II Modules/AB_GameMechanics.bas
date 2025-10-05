@@ -1,15 +1,4 @@
-Option Explicit
-
 'Scrolling
-'
-'-----------------------------------------------------------------
-' Module: AB_GameMechanics
-' Purpose: Scrolling and screen calculation helpers. Responsible for
-'          determining which quadrant/screen to display as Link moves.
-' Cleanup TODOs:
-'  - Extract constants and cell indices to named constants or ZZ_Globals
-'  - Simplify long Select Case blocks into small helper functions
-'-----------------------------------------------------------------
 
 Sub myScroll(scrollDir)
 
