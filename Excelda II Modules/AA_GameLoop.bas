@@ -29,15 +29,6 @@ End Type
 
 Private m_ActionSprites As ActionSprites
 
-
-'###################################################################################
-'
-'
-'
-'
-'
-'###################################################################################
-
 '###################################################################################
 '                              Main Game Loop
 '###################################################################################
@@ -95,7 +86,13 @@ Private Sub GameLoop()
         HandleMovementInput
         UpdateSpriteFrames
         HandleActionInput
-        
+        HandleTriggers
+        HandleEnemies
+
+        If CheckCollision Then GoTo ContinueLoop
+
+        UpdateSpriteVisibility
+
 ContinueLoop:
         UpdateSpritePositions
         SleepAndSync
@@ -177,14 +174,38 @@ Private Sub UpdateSpriteFrames()
         .UpdateFrame m_GameState.MoveDir
         
         Select Case m_GameState.MoveDir
-            Case "U": .Top = .Top - m_GameState.MoveSpeed
-            Case "D": .Top = .Top + m_GameState.MoveSpeed
-            Case "R": .Left = .Left + m_GameState.MoveSpeed
-            Case "L": .Left = .Left - m_GameState.MoveSpeed
+            Case "U":
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
+                .Top = .Top - m_GameState.MoveSpeed
+            Case "D":
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
+                .Top = .Top + m_GameState.MoveSpeed
+            Case "L":
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkLeft1"), ActiveSheet.Shapes("LinkLeft2"))
+                .Left = .Left - m_GameState.MoveSpeed
+            Case "R":
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkRight1"), ActiveSheet.Shapes("LinkRight2"))
+                .Left = .Left + m_GameState.MoveSpeed
+            Case "LU", "UL"
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
+                .Top = .Top - m_GameState.MoveSpeed
+                .Left = .Left - m_GameState.MoveSpeed
+            Case "RU", "UR"
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
+                .Top = .Top - m_GameState.MoveSpeed
+                .Left = .Left + m_GameState.MoveSpeed
+            Case "LD", "DL"
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown2"), ActiveSheet.Shapes("LinkDown1"))
+                .Top = .Top + m_GameState.MoveSpeed
+                .Left = .Left - m_GameState.MoveSpeed
+            Case "RD", "DR"
+                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
+                .Top = .Top + m_GameState.MoveSpeed
+                .Left = .Left + m_GameState.MoveSpeed
         End Select
         
         ' Update global state for compatibility
-        Set LinkSprite = .LinkSprite
+        ' Set LinkSprite = .LinkSprite
         LinkSpriteTop = .Top
         LinkSpriteLeft = .Left
     End With
@@ -198,7 +219,16 @@ Private Sub UpdateSpritePositions()
     LinkSpriteTop = m_SpriteManager.Top
     LinkSpriteLeft = m_SpriteManager.Left
     
+    ' debug check if AlignLinkSprites exists
     Call AlignLinkSprites(LinkSpriteLeft, LinkSpriteTop)
+End Sub
+
+Sub AlignLinkSprites(ByVal leftPos As Double, ByVal topPos As Double)
+    Dim s As Variant
+    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+        ActiveSheet.Shapes(s).Left = leftPos
+        ActiveSheet.Shapes(s).Top = topPos
+    Next s
 End Sub
 
 '###################################################################################
@@ -236,215 +266,6 @@ Private Sub SleepAndSync()
     Sleep m_GameState.GameSpeed
     Application.CutCopyMode = False
 End Sub
-        
-    Case Is = "LU"
-    If LinkSpriteFrame = 1 Then
-        'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft1")
-        Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-    Else
-         'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft2")
-         Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-    End If
-        LinkSpriteLeft = LinkSpriteLeft - LinkMove
-        LinkSpriteTop = LinkSpriteTop - LinkMove
-        
-    Case Is = "UL"
-    If LinkSpriteFrame = 1 Then
-        'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft1")
-        Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-    Else
-         'Set LinkSprite = ActiveSheet.Shapes("LinkUpLeft2")
-         Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-    End If
-        LinkSpriteLeft = LinkSpriteLeft - LinkMove
-        LinkSpriteTop = LinkSpriteTop - LinkMove
-        
-    Case Is = "RU"
-        If LinkSpriteFrame = 1 Then
-            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight1")
-            Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-        Else
-            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight2")
-            Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-        End If
-        LinkSpriteLeft = LinkSpriteLeft + LinkMove
-        LinkSpriteTop = LinkSpriteTop - LinkMove
-        
-    Case Is = "UR"
-        If LinkSpriteFrame = 1 Then
-            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight1")
-            Set LinkSprite = ActiveSheet.Shapes("LinkUp1")
-        Else
-            'Set LinkSprite = ActiveSheet.Shapes("LinkUpRight2")
-            Set LinkSprite = ActiveSheet.Shapes("LinkUp2")
-        End If
-        LinkSpriteLeft = LinkSpriteLeft + LinkMove
-        LinkSpriteTop = LinkSpriteTop - LinkMove
-        
-    Case Is = "LD"
-        If LinkSpriteFrame = 1 Then
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownLeft2")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-        Else
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownLeft1")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown1")
-        End If
-        LinkSpriteLeft = LinkSpriteLeft - LinkMove
-        LinkSpriteTop = LinkSpriteTop + LinkMove
-        
-    Case Is = "DL"
-        If LinkSpriteFrame = 1 Then
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownLeft2")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-        Else
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownLeft1")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown1")
-        End If
-        LinkSpriteLeft = LinkSpriteLeft - LinkMove
-        LinkSpriteTop = LinkSpriteTop + LinkMove
-        
-    Case Is = "RD"
-        If LinkSpriteFrame = 1 Then
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownRight1")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown1")
-        Else
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownRight2")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-        End If
-        LinkSpriteLeft = LinkSpriteLeft + LinkMove
-        LinkSpriteTop = LinkSpriteTop + LinkMove
-        
-    Case Is = "DR"
-        If LinkSpriteFrame = 1 Then
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownRight1")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown1")
-        Else
-            'Set LinkSprite = ActiveSheet.Shapes("LinkDownRight2")
-            Set LinkSprite = ActiveSheet.Shapes("LinkDown2")
-        End If
-        LinkSpriteLeft = LinkSpriteLeft + LinkMove
-        LinkSpriteTop = LinkSpriteTop + LinkMove
-        
-    Case Else
-        'MsgBox ("Gameloop:  No MoveDir - Linksprite = " & LinkSprite.Name)
-End Select
-
-
-'###########################################################################
-' C and D keys (actions) ###################################################
-'###########################################################################
-
-
-'C pressed ###########################################
-Select Case GetAsyncKeyState(67)
-
-'If it's pressed
-Case Is <> 0
-    Sheets("Data").Range("C24").Value = "Y"
-    CPress = CPress + 1
-    
-    Select Case CItem
-    
-        Case Is = "Sword"
-            Call swordSwipe(1)
-            
-        Case Is = "Shield"
-            Call showShield
-            
-        Case Else
-            'Insert more items here
-    End Select
-
-Case Is = 0
-
-    Select Case CItem
-        'If the sword has stopped being pressed
-        Case Is = "Sword"
-            
-            Select Case CPress
-                Case Is >= 20
-                    SwordFrame1.Visible = False
-                    SwordFrame2.Visible = False
-                    SwordFrame2.Visible = False
-                    Call swordSpin
-                    
-                Case Else
-                    SwordFrame1.Visible = False
-                    SwordFrame2.Visible = False
-                    SwordFrame2.Visible = False
-
-            End Select
-            
-        Case Is = "Shield"
-            shieldSprite.Visible = False
-            Sheets("Data").Range("C28").Value = ""
-        
-        Case Else
-
-    End Select
-    
-    'Reset the flags
-    Sheets("Data").Range("C24").Value = ""
-    CPress = 0
-    
-End Select
-
-
-
-
-'D pressed ###########################################
-Select Case GetAsyncKeyState(68)
-
-'If it's pressed
-Case Is <> 0
-    Sheets("Data").Range("C25").Value = "Y"
-    DPress = DPress + 1
-
-    Select Case DItem
-    
-        Case Is = "Sword"
-            Call swordSwipe(2)
-            
-        Case Is = "Shield"
-            Call showShield
-            
-        Case Else
-            'Insert more items here
-    End Select
-
-Case Is = 0
-
-    Select Case DItem
-        'If the sword has stopped being pressed
-        Case Is = "Sword"
-            
-            Select Case DPress
-                Case Is >= 20
-                    SwordFrame1.Visible = False
-                    SwordFrame2.Visible = False
-                    SwordFrame2.Visible = False
-                    Call swordSpin
-                    
-                Case Else
-                    SwordFrame1.Visible = False
-                    SwordFrame2.Visible = False
-                    SwordFrame2.Visible = False
-
-            End Select
-            
-        Case Is = "Shield"
-            shieldSprite.Visible = False
-            Sheets("Data").Range("C28").Value = ""
-        
-        Case Else
-
-    End Select
-    
-    'Reset the flags
-    Sheets("Data").Range("C25").Value = ""
-    DPress = 0
-    
-End Select
 
 
 '###################################################################################
@@ -515,6 +336,7 @@ Private Sub HandleTriggers()
 
 End If
 
+
 '###################################################################################
 '                              Enemy Management
 '###################################################################################
@@ -561,8 +383,6 @@ Private Sub HandleEnemy(ByVal enemyIndex As Integer)
 End Sub
 
 
-'-------------------------------------------------------------------
-
 '###################################################################################
 '                              Collision Detection
 '###################################################################################
@@ -601,9 +421,6 @@ Private Function CheckCollision() As Boolean
 End Function
 
 
-
-'MsgBox (LinkSprite.Name)
-
 '###################################################################################
 '                              Sprite Visibility Management
 '###################################################################################
@@ -641,66 +458,6 @@ Private Sub UpdateAnimationCounter()
     Else
         Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value = currentCount + 1
     End If
-End Sub
-
-
-'LinkAlign:
-
-'make sure all images are in the same place at all times
-'Call alignLink
-    ActiveSheet.Shapes("LinkUp1").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkUp1").Left = LinkSpriteLeft
-    ActiveSheet.Shapes("LinkUp2").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkUp2").Left = LinkSpriteLeft
-    
-    ActiveSheet.Shapes("LinkDown1").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkDown1").Left = LinkSpriteLeft
-    ActiveSheet.Shapes("LinkDown2").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkDown2").Left = LinkSpriteLeft
-
-    ActiveSheet.Shapes("LinkRight1").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkRight1").Left = LinkSpriteLeft
-    ActiveSheet.Shapes("LinkRight2").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkRight2").Left = LinkSpriteLeft
-        
-    ActiveSheet.Shapes("LinkLeft1").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkLeft1").Left = LinkSpriteLeft
-    ActiveSheet.Shapes("LinkLeft2").Top = LinkSpriteTop
-    ActiveSheet.Shapes("LinkLeft2").Left = LinkSpriteLeft
-    
-
-
-'--------------------------------------------------------------------
-'reset the animation counter
-
-If Sheets("Data").Range("C20").Value >= 10 Then
-    Sheets("Data").Range("C20").Value = 0
-Else
-    Sheets("Data").Range("C20").Value = Sheets("Data").Range("C20").Value + 1
-End If
-
-afterMove:
-
-'-------------------------------
-Range("A1").Copy Range("A2")
-Sheets("Data").Range("C21").Value = ""
-Sleep (gameSpeed)
-
-
-'scroll timer
-'If Sheets("Data").Range("C6").Value <> 0 Then
-'    Sheets("Data").Range("C6").Value = Sheets("Data").Range("C6").Value - 1
-'Else
-'    Sheets("Data").Range("C7").Value = "X"
-'End If
-
-Application.CutCopyMode = False
-GoTo startLoop
-'-------------------------------
-
-endLoop:
-
-
 End Sub
 
 Sub Relocate(location)
