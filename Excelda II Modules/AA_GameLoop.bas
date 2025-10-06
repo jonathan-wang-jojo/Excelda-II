@@ -1,102 +1,93 @@
 Option Explicit
 
+'###################################################################################
+'                              EXCELDA II - MAIN GAME LOOP
+'###################################################################################
+
 ' Win32 API Declarations
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
 ' Module-level variables
-Private m_ScreenSetUpTimer As Long
 Private m_GameState As GameState
 Private m_SpriteManager As SpriteManager
-
-' Action state type
-Private Type ActionState
-    CItem As String
-    DItem As String
-    CPress As Long
-    DPress As Long
-End Type
-
-Private m_Actions As ActionState
-
-' References to action-related sprites
-Private Type ActionSprites
-    SwordFrame1 As Object
-    SwordFrame2 As Object
-    SwordFrame3 As Object
-    ShieldSprite As Object
-End Type
-
-Private m_ActionSprites As ActionSprites
+Private m_ActionManager As ActionManager
+Private m_EnemyManager As EnemyManager
 
 '###################################################################################
 '                              Main Game Loop
 '###################################################################################
 
 Public Sub RunGame()
+    On Error GoTo ErrorHandler
+    
     InitializeGame
     GameLoop
+    
+    Exit Sub
+    
+ErrorHandler:
+    MsgBox "Error in RunGame: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Game Error"
+    Application.CutCopyMode = False
+    Sheets(SHEET_TITLE).Activate
 End Sub
 
 Private Sub InitializeGame()
-    ' Initialize GameState singleton
-    Set m_GameState = New GameState
-    Set m_SpriteManager = New SpriteManager
+    On Error GoTo InitializeError
     
-    ' Initialize action state
-    With m_Actions
-        .CItem = Sheets(SHEET_DATA).Range(RANGE_C_ITEM).Value
-        .DItem = Sheets(SHEET_DATA).Range(RANGE_D_ITEM).Value
-        .CPress = 0
-        .DPress = 0
-    End With
+    ' Initialize focused managers
+    Set m_GameState = GameState.Instance
+    Set m_SpriteManager = SpriteManager.Instance
+    Set m_ActionManager = ActionManager.Instance
+    Set m_EnemyManager = EnemyManager.Instance
     
-    ' Initialize action sprites
-    With m_ActionSprites
-        Set .SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
-        Set .SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
-        Set .SwordFrame3 = ActiveSheet.Shapes("SwordDown")
-        Set .ShieldSprite = ActiveSheet.Shapes("LinkShieldDown")
-    End With
+    Exit Sub
     
-    ' Initialize screen setup timer
-    m_ScreenSetUpTimer = 0
-    
-    ' Keep these global for now as other modules depend on them
-    CItem = m_Actions.CItem
-    DItem = m_Actions.DItem
-    Set SwordFrame1 = m_ActionSprites.SwordFrame1
-    Set SwordFrame2 = m_ActionSprites.SwordFrame2
-    Set SwordFrame3 = m_ActionSprites.SwordFrame3
-    Set shieldSprite = m_ActionSprites.ShieldSprite
+InitializeError:
+    MsgBox "Error initializing game: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Initialization Error"
 End Sub
 
-
 Private Sub GameLoop()
+    On Error GoTo GameLoopError
+    
     Do
-        If CheckQuitGame Then Exit Sub
+        ' Check for quit condition
+        If CheckQuitGame Then Exit Do
         
+        ' Update game timers
         UpdateTimers
         
-        ' Handle special states
+        ' Handle special game states
         If HandleCollisionState Then GoTo ContinueLoop
         If HandleFallingState Then GoTo ContinueLoop
         
-        ' Handle input and movement
+        ' Process game logic
         HandleMovementInput
         UpdateSpriteFrames
         HandleActionInput
         HandleTriggers
         HandleEnemies
 
+        ' Check for collisions after movement
         If CheckCollision Then GoTo ContinueLoop
 
+        ' Update visual elements
         UpdateSpriteVisibility
 
 ContinueLoop:
+        ' Update positions and sync
         UpdateSpritePositions
         SleepAndSync
+        
+        ' Yield control to Excel
+        DoEvents
     Loop
+    
+    Exit Sub
+    
+GameLoopError:
+    MsgBox "Error in GameLoop: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Game Loop Error"
+    Application.CutCopyMode = False
 End Sub
 
 '###################################################################################
@@ -115,50 +106,13 @@ Private Sub HandleMovementInput()
     ' Update movement state
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = newDir
     
-    ' Update global state for compatibility
-    moveDir = newDir
-    If newDir <> "" Then lastDir = newDir
-    
     ' Update GameState
     m_GameState.MoveDir = newDir
 End Sub
 
 Private Sub HandleActionInput()
-    HandleActionKey KEY_C, m_Actions.CItem, m_Actions.CPress, RANGE_ACTION_C
-    HandleActionKey KEY_D, m_Actions.DItem, m_Actions.DPress, RANGE_ACTION_D
-    
-    ' Update global state for compatibility
-    CPress = m_Actions.CPress
-    DPress = m_Actions.DPress
-End Sub
-
-Private Sub HandleActionKey(ByVal keyCode As Integer, ByVal item As String, ByRef pressCounter As Long, ByVal flagCell As String)
-    If GetAsyncKeyState(keyCode) <> 0 Then
-        Sheets(SHEET_DATA).Range(flagCell).Value = "Y"
-        pressCounter = pressCounter + 1
-        
-        Select Case item
-            Case "Sword"
-                Call SwordSwipe(IIf(keyCode = KEY_C, 1, 2))
-            Case "Shield"
-                Call ShowShield
-        End Select
-    Else
-        If item = "Sword" Then
-            If pressCounter >= 20 Then Call SwordSpin
-            With m_ActionSprites
-                .SwordFrame1.Visible = False
-                .SwordFrame2.Visible = False
-                .SwordFrame3.Visible = False
-            End With
-        ElseIf item = "Shield" Then
-            m_ActionSprites.ShieldSprite.Visible = False
-            Sheets(SHEET_DATA).Range(RANGE_SHIELD_STATE).Value = ""
-        End If
-        
-        Sheets(SHEET_DATA).Range(flagCell).Value = ""
-        pressCounter = 0
-    End If
+    m_ActionManager.HandleActionKey KEY_C, m_ActionManager.CItem, m_ActionManager.CPress, RANGE_ACTION_C
+    m_ActionManager.HandleActionKey KEY_D, m_ActionManager.DItem, m_ActionManager.DPress, RANGE_ACTION_D
 End Sub
 
 '###################################################################################
@@ -166,69 +120,20 @@ End Sub
 '###################################################################################
 
 Private Sub UpdateSpriteFrames()
-    Dim currentFrame As Integer
-    currentFrame = IIf(Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value >= 5, 1, 2)
+    On Error GoTo SpriteFrameError
     
-    ' Update sprite frame and position based on movement
-    With m_SpriteManager
-        .UpdateFrame m_GameState.MoveDir
-        
-        Select Case m_GameState.MoveDir
-            Case "U":
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
-                .Top = .Top - m_GameState.MoveSpeed
-            Case "D":
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
-                .Top = .Top + m_GameState.MoveSpeed
-            Case "L":
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkLeft1"), ActiveSheet.Shapes("LinkLeft2"))
-                .Left = .Left - m_GameState.MoveSpeed
-            Case "R":
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkRight1"), ActiveSheet.Shapes("LinkRight2"))
-                .Left = .Left + m_GameState.MoveSpeed
-            Case "LU", "UL"
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
-                .Top = .Top - m_GameState.MoveSpeed
-                .Left = .Left - m_GameState.MoveSpeed
-            Case "RU", "UR"
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
-                .Top = .Top - m_GameState.MoveSpeed
-                .Left = .Left + m_GameState.MoveSpeed
-            Case "LD", "DL"
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown2"), ActiveSheet.Shapes("LinkDown1"))
-                .Top = .Top + m_GameState.MoveSpeed
-                .Left = .Left - m_GameState.MoveSpeed
-            Case "RD", "DR"
-                Set LinkSprite = IIf(frame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
-                .Top = .Top + m_GameState.MoveSpeed
-                .Left = .Left + m_GameState.MoveSpeed
-        End Select
-        
-        ' Update global state for compatibility
-        ' Set LinkSprite = .LinkSprite
-        LinkSpriteTop = .Top
-        LinkSpriteLeft = .Left
-    End With
+    ' Update sprite frame and position through SpriteManager
+    m_SpriteManager.UpdateFrame m_GameState.MoveDir, m_GameState.MoveSpeed
+    
+    Exit Sub
+    
+SpriteFrameError:
+    MsgBox "Error in UpdateSpriteFrames: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Sprite Error"
 End Sub
 
 Private Sub UpdateSpritePositions()
     ' Update sprite positions through SpriteManager
     m_SpriteManager.UpdatePosition
-    
-    ' Update global state for compatibility
-    LinkSpriteTop = m_SpriteManager.Top
-    LinkSpriteLeft = m_SpriteManager.Left
-    
-    ' debug check if AlignLinkSprites exists
-    Call AlignLinkSprites(LinkSpriteLeft, LinkSpriteTop)
-End Sub
-
-Sub AlignLinkSprites(ByVal leftPos As Double, ByVal topPos As Double)
-    Dim s As Variant
-    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
-        ActiveSheet.Shapes(s).Left = leftPos
-        ActiveSheet.Shapes(s).Top = topPos
-    Next s
 End Sub
 
 '###################################################################################
@@ -245,13 +150,12 @@ Private Function CheckQuitGame() As Boolean
 End Function
 
 Private Sub UpdateTimers()
-    If m_ScreenSetUpTimer > 0 Then m_ScreenSetUpTimer = m_ScreenSetUpTimer - 1
-    screenSetUpTimer = m_ScreenSetUpTimer ' Update global for compatibility
+    If m_GameState.ScreenSetUpTimer > 0 Then m_GameState.ScreenSetUpTimer = m_GameState.ScreenSetUpTimer - 1
 End Sub
 
 Private Function HandleCollisionState() As Boolean
-    If RNDBounceback <> "" Then
-        Call BounceBack(m_SpriteManager.LinkSprite, ActiveSheet.Shapes(CollidedWith))
+    If m_GameState.RNDBounceback <> "" Then
+        Call BounceBack(m_SpriteManager.LinkSprite, ActiveSheet.Shapes(m_GameState.CollidedWith))
         HandleCollisionState = True
     End If
 End Function
@@ -267,7 +171,6 @@ Private Sub SleepAndSync()
     Application.CutCopyMode = False
 End Sub
 
-
 '###################################################################################
 '                              Trigger System
 '###################################################################################
@@ -277,8 +180,7 @@ Private Sub HandleTriggers()
     Dim currentCellAddress As String
     currentCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
     
-    ' Update global state for compatibility
-    linkCellAddress = currentCellAddress
+    ' Update GameState
     m_GameState.LinkCellAddress = currentCellAddress
     
     ' Store current location
@@ -288,8 +190,7 @@ Private Sub HandleTriggers()
     Dim codeCellValue As String
     codeCellValue = Range(currentCellAddress).Offset(3, 2).Value
     
-    ' Update global and GameState
-    CodeCell = codeCellValue
+    ' Update GameState
     m_GameState.CodeCell = codeCellValue
     
     ' Process triggers if code cell has content
@@ -304,7 +205,6 @@ Private Sub HandleTriggers()
         FallIndicator = Mid(codeCellValue, 3, 2)
         ActionIndicator = Mid(codeCellValue, 7, 2)
  
-    
         ' Handle scroll triggers
         If ScrollIndicator = "S" Then
             Call myScroll(ScrollDir)
@@ -331,57 +231,18 @@ Private Sub HandleTriggers()
                 Call SpecialEventTrigger(codeCellValue)
         End Select
     End If
-
-
-
-End If
-
+End Sub
 
 '###################################################################################
 '                              Enemy Management
 '###################################################################################
 
 Private Sub HandleEnemies()
-    HandleEnemy 1
-    HandleEnemy 2
-    HandleEnemy 3
-    HandleEnemy 4
+    m_EnemyManager.HandleEnemy 1, m_SpriteManager.LinkSprite
+    m_EnemyManager.HandleEnemy 2, m_SpriteManager.LinkSprite
+    m_EnemyManager.HandleEnemy 3, m_SpriteManager.LinkSprite
+    m_EnemyManager.HandleEnemy 4, m_SpriteManager.LinkSprite
 End Sub
-
-Private Sub HandleEnemy(ByVal enemyIndex As Integer)
-    ' Get enemy name based on index
-    Dim enemyName As String
-    Select Case enemyIndex
-        Case 1: enemyName = RNDenemyName1
-        Case 2: enemyName = RNDenemyName2
-        Case 3: enemyName = RNDenemyName3
-        Case 4: enemyName = RNDenemyName4
-        Case Else: Exit Sub
-    End Select
-    
-    ' Skip if enemy doesn't exist
-    If enemyName = "" Then Exit Sub
-    
-    ' Process enemy
-    Call enemyCollision(m_SpriteManager.LinkSprite, enemyName)
-    
-    ' Check hit state
-    Dim isHit As Boolean
-    Select Case enemyIndex
-        Case 1: isHit = (RNDenemyHit1 > 0)
-        Case 2: isHit = (RNDenemyHit2 > 0)
-        Case 3: isHit = (RNDenemyHit3 > 0)
-        Case 4: isHit = (RNDenemyHit4 > 0)
-    End Select
-    
-    ' Handle hit or movement
-    If isHit Then
-        Call enemyBounceBack(enemyIndex)
-    Else
-        Call RNDEnemyMove(enemyIndex)
-    End If
-End Sub
-
 
 '###################################################################################
 '                              Collision Detection
@@ -420,30 +281,13 @@ Private Function CheckCollision() As Boolean
     End Select
 End Function
 
-
 '###################################################################################
 '                              Sprite Visibility Management
 '###################################################################################
 
 Private Sub UpdateSpriteVisibility()
-    Dim spriteName As String
-    spriteName = m_SpriteManager.LinkSprite.Name
-    
-    ' Hide all sprites first
-    Dim directions As Variant
-    directions = Array("Up", "Down", "Left", "Right")
-    Dim frames As Variant
-    frames = Array("1", "2")
-    
-    Dim dir As Variant, frame As Variant
-    For Each dir In directions
-        For Each frame In frames
-            ActiveSheet.Shapes("Link" & dir & frame).Visible = False
-        Next frame
-    Next dir
-    
-    ' Show only the active sprite
-    m_SpriteManager.LinkSprite.Visible = True
+    ' Update sprite visibility through SpriteManager
+    m_SpriteManager.UpdateVisibility
     
     ' Update animation counter
     UpdateAnimationCounter
@@ -460,90 +304,68 @@ Private Sub UpdateAnimationCounter()
     End If
 End Sub
 
-Sub Relocate(location)
-
-If location = Sheets("Data").Range("C8").Value Then
+Sub Relocate(ByVal location As String)
+    On Error GoTo RelocateError
     
-    Range(location).Activate
-
-    Select Case Sheets("Data").Range("C9").Value
+    Dim targetCell As Range
+    Dim cellAdd As String
     
-    Case Is = "U"
-        ActiveCell.Offset(-1, 0).Activate
-    Case Is = "D"
-        ActiveCell.Offset(1, 0).Activate
-    Case Is = "L"
-        ActiveCell.Offset(0, -1).Activate
-    Case Is = "R"
-        ActiveCell.Offset(0, 2).Activate
-    Case Else
-    
-    End Select
-
-Else
-
-    Dim cellAdd
-    cellAdd = location
-    cellAdd = Right(cellAdd, 4)
-
-    Cells.Find(What:=cellAdd, After:=ActiveCell, LookIn:=xlFormulas, LookAt _
-        :=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:= _
-        True, SearchFormat:=False).Activate
+    ' Determine target cell
+    If location = Sheets(SHEET_DATA).Range("C8").Value Then
+        Set targetCell = Range(location)
         
-End If
-
-'MsgBox "relocating all link images"
-
-    ActiveSheet.Shapes("LinkRight1").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkRight1").Left = ActiveCell.Left
+        ' Apply offset based on direction
+        Select Case Sheets(SHEET_DATA).Range("C9").Value
+            Case "U"
+                Set targetCell = targetCell.Offset(-1, 0)
+            Case "D"
+                Set targetCell = targetCell.Offset(1, 0)
+            Case "L"
+                Set targetCell = targetCell.Offset(0, -1)
+            Case "R"
+                Set targetCell = targetCell.Offset(0, 2)
+        End Select
+    Else
+        ' Find cell by searching for the last 4 characters
+        cellAdd = Right(location, 4)
+        Set targetCell = Cells.Find(What:=cellAdd, After:=ActiveCell, LookIn:=xlFormulas, _
+                                   LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
+                                   MatchCase:=True, SearchFormat:=False)
         
-    ActiveSheet.Shapes("LinkRight2").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkRight2").Left = ActiveCell.Left
-        
-    ActiveSheet.Shapes("LinkLeft1").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkLeft1").Left = ActiveCell.Left
+        If targetCell Is Nothing Then
+            MsgBox "Target cell not found: " & cellAdd, vbCritical, "Relocate Error"
+            Exit Sub
+        End If
+    End If
     
-    ActiveSheet.Shapes("LinkLeft2").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkLeft2").Left = ActiveCell.Left
+    ' Update all sprite positions
+    m_SpriteManager.AlignLinkSprites targetCell.Left, targetCell.Top
     
-    ActiveSheet.Shapes("LinkDown1").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkDown1").Left = ActiveCell.Left
+    ' Update GameState
+    m_SpriteManager.LinkSprite.Top = targetCell.Top
+    m_SpriteManager.LinkSprite.Left = targetCell.Left
+    m_SpriteManager.LinkSpriteLeft = targetCell.Left
+    m_SpriteManager.LinkSpriteTop = targetCell.Top
+    m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
+    m_GameState.CodeCell = ""
     
-    ActiveSheet.Shapes("LinkDown2").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkDown2").Left = ActiveCell.Left
+    ' Screen alignment and setup
+    Call alignScreen
+    Range("A1").Copy Range("A2")
+    Call calculateScreenLocation("1", "D")
     
-    ActiveSheet.Shapes("LinkUp1").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkUp1").Left = ActiveCell.Left
+    ' Run screen setup macro
+    On Error GoTo ScreenSetupError
+    Dim mySub As String
+    mySub = m_GameState.CurrentScreen
+    Application.Run mySub
     
-    ActiveSheet.Shapes("LinkUp2").Top = ActiveCell.Top
-    ActiveSheet.Shapes("LinkUp2").Left = ActiveCell.Left
+    Exit Sub
     
-    LinkSprite.Top = ActiveCell.Top
-    LinkSprite.Left = ActiveCell.Left
+ScreenSetupError:
+    MsgBox "Screen setup macro not found: " & mySub, vbCritical, "Screen Setup Error"
+    Exit Sub
     
-    LinkSpriteLeft = LinkSprite.Left
-    LinkSpriteTop = LinkSprite.Top
-    
-    linkCellAddress = LinkSprite.TopLeftCell.Address
-    CodeCell = ""
-    
-    'Sheets("Data").Range("C8").Value = linkCellAddress
-    
-Call alignScreen
-
-Range("A1").Copy Range("A2")
-
-Call calculateScreenLocation("1", "D")
-
-On Error GoTo endPoint
-
-mySub = currentScreen 'global
-Application.Run mySub
-
-Exit Sub
-
-endPoint:
-MsgBox "Screen setup macro not found: " & mySub
-
-
+RelocateError:
+    MsgBox "Error in Relocate: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Relocate Error"
 End Sub

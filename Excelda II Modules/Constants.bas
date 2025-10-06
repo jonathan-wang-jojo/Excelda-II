@@ -1,4 +1,3 @@
-Attribute VB_Name = "Constants"
 Option Explicit
 
 ' Game constants
@@ -22,7 +21,7 @@ Public Enum EntityType
 End Enum
 
 ' Game states
-Public Enum GameState
+Public Enum GameStateType
     MainMenu = 0
     Playing = 1
     Paused = 2
@@ -55,3 +54,17 @@ Public Const RANGE_FRAME_COUNT As String = "C20"
 Public Const RANGE_ACTION_C As String = "C24"
 Public Const RANGE_ACTION_D As String = "C25"
 Public Const RANGE_SHIELD_STATE As String = "C28"
+
+' Scroll and Screen Management Ranges
+Public Const RANGE_CURRENT_CELL As String = "C8"
+Public Const RANGE_SCROLL_DIRECTION As String = "C7"
+Public Const RANGE_PREVIOUS_SCROLL As String = "D7"
+Public Const RANGE_PREVIOUS_CELL As String = "D8"
+Public Const RANGE_SCREEN_ROW As String = "C7"
+Public Const RANGE_SCREEN_COLUMN As String = "C8"
+
+' Scroll Constants
+Public Const SCROLL_VERTICAL As String = "1"
+Public Const SCROLL_HORIZONTAL As String = "2"
+Public Const SCROLL_AMOUNT_VERTICAL As Long = 32
+Public Const SCROLL_AMOUNT_HORIZONTAL As Long = 60
