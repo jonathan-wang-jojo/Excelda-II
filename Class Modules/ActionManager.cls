@@ -26,29 +26,43 @@ End Type
 
 Private m_Sprites As ActionSprites
 
-' Singleton pattern
-Private m_Instance As ActionManager
-Private m_Initialized As Boolean
-
+' Class Init
 Private Sub Class_Initialize()
-    If Not m_Initialized Then
-        InitializeActions
-        m_Initialized = True
-    End If
-End Sub
+    Dim wsData As Worksheet
+    Dim wsGame As Worksheet
 
-Private Sub InitializeActions()
+    Set wsData = Sheets(SHEET_DATA)
+    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+
     ' Initialize action items from data sheet
-    m_Action.CItem = Sheets(SHEET_DATA).Range(RANGE_C_ITEM).Value
-    m_Action.DItem = Sheets(SHEET_DATA).Range(RANGE_D_ITEM).Value
+    m_Action.CItem = wsData.Range(RANGE_C_ITEM).Value
+    m_Action.DItem = wsData.Range(RANGE_D_ITEM).Value
     m_Action.CPress = 0
     m_Action.DPress = 0
     
     ' Initialize action sprites
-    Set m_Sprites.SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
-    Set m_Sprites.SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
-    Set m_Sprites.SwordFrame3 = ActiveSheet.Shapes("SwordDown")
-    Set m_Sprites.ShieldSprite = ActiveSheet.Shapes("LinkShieldDown")
+    Set m_Sprites.SwordFrame1 = wsGame.Shapes("SwordLeft")
+    Set m_Sprites.SwordFrame2 = wsGame.Shapes("SwordSwipeDownLeft")
+    Set m_Sprites.SwordFrame3 = wsGame.Shapes("SwordDown")
+    Set m_Sprites.ShieldSprite = wsGame.Shapes("LinkShieldDown")
+End Sub
+
+' CALL WHEN game restarts or change levels
+' uncalled currently
+Public Sub Reset()
+    m_Action.CPress = 0
+    m_Action.DPress = 0
+    m_Sprites.SwordFrame1.Visible = False
+    m_Sprites.SwordFrame2.Visible = False
+    m_Sprites.SwordFrame3.Visible = False
+    m_Sprites.ShieldSprite.Visible = False
+End Sub
+
+Public Sub Destroy()
+    Set m_Sprites.SwordFrame1 = Nothing
+    Set m_Sprites.SwordFrame2 = Nothing
+    Set m_Sprites.SwordFrame3 = Nothing
+    Set m_Sprites.ShieldSprite = Nothing
 End Sub
 
 ' Action item properties
@@ -118,37 +132,41 @@ Public Property Set ShieldSprite(ByVal Value As Object)
 End Property
 
 ' Action methods
-Public Sub HandleActionKey(ByVal keyCode As Integer, ByVal item As String, ByRef pressCounter As Long, ByVal flagCell As String)
-    If GetAsyncKeyState(keyCode) <> 0 Then
-        Sheets(SHEET_DATA).Range(flagCell).Value = "Y"
+Public Sub HandleActionKey(ByVal keyCode As Integer, ByVal item As String, _
+                           ByRef pressCounter As Long, ByVal flagCell As String)
+    Dim keyPressed As Boolean
+    keyPressed = (GetAsyncKeyState(keyCode) <> 0)
+    UpdateActionState keyPressed, item, pressCounter, flagCell
+End Sub
+
+Private Sub UpdateActionState(ByVal keyPressed As Boolean, ByVal item As String, _
+                              ByRef pressCounter As Long, ByVal flagCell As String)
+    Dim ws As Worksheet
+    Set ws = Sheets(SHEET_DATA)
+
+    If keyPressed Then
+        ws.Range(flagCell).Value = "Y"
         pressCounter = pressCounter + 1
-        
         Select Case item
-            Case "Sword"
-                Call SwordSwipe(IIf(keyCode = KEY_C, 1, 2))
-            Case "Shield"
-                Call ShowShield
+            Case "Sword": SwordSwipe IIf(keyCode = KEY_C, 1, 2)
+            Case "Shield": ShowShield
         End Select
     Else
-        If item = "Sword" Then
-            If pressCounter >= 20 Then Call SwordSpin
-            m_Sprites.SwordFrame1.Visible = False
-            m_Sprites.SwordFrame2.Visible = False
-            m_Sprites.SwordFrame3.Visible = False
-        ElseIf item = "Shield" Then
-            m_Sprites.ShieldSprite.Visible = False
-            Sheets(SHEET_DATA).Range(RANGE_SHIELD_STATE).Value = ""
-        End If
-        
-        Sheets(SHEET_DATA).Range(flagCell).Value = ""
+        ResetAction item, pressCounter
+        ws.Range(flagCell).Value = ""
         pressCounter = 0
     End If
 End Sub
 
-' Singleton accessor
-Public Property Get Instance() As ActionManager
-    If m_Instance Is Nothing Then
-        Set m_Instance = New ActionManager
-    End If
-    Set Instance = m_Instance
-End Property
+Private Sub ResetAction(ByVal item As String, ByVal pressCounter As Long)
+    Select Case item
+        Case "Sword"
+            If pressCounter >= 20 Then SwordSpin
+            m_Sprites.SwordFrame1.Visible = False
+            m_Sprites.SwordFrame2.Visible = False
+            m_Sprites.SwordFrame3.Visible = False
+        Case "Shield"
+            m_Sprites.ShieldSprite.Visible = False
+            Sheets(SHEET_DATA).Range(RANGE_SHIELD_STATE).Value = ""
+    End Select
+End Sub

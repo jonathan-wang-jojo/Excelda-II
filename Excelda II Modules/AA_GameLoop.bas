@@ -22,6 +22,8 @@ Public Sub RunGame()
     On Error GoTo ErrorHandler
     
     InitializeGame
+    ' Call calculateScreenLocation(linkDirection, linkCell)
+
     GameLoop
     
     Exit Sub
@@ -36,10 +38,10 @@ Private Sub InitializeGame()
     On Error GoTo InitializeError
     
     ' Initialize focused managers
-    Set m_GameState = GameState.Instance
-    Set m_SpriteManager = SpriteManager.Instance
-    Set m_ActionManager = ActionManager.Instance
-    Set m_EnemyManager = EnemyManager.Instance
+    Set m_GameState = GameStateInstance()
+    Set m_SpriteManager = SpriteManagerInstance()
+    Set m_ActionManager = ActionManagerInstance()
+    Set m_EnemyManager = EnemyManagerInstance()
     
     Exit Sub
     
@@ -142,6 +144,8 @@ End Sub
 
 Private Function CheckQuitGame() As Boolean
     If GetAsyncKeyState(KEY_Q) <> 0 Then
+        Call DestroyAllManagers
+
         Application.CutCopyMode = False
         Sheets(SHEET_TITLE).Activate
         ActiveSheet.Range("A1").Select

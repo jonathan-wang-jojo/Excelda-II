@@ -6,7 +6,6 @@ Option Explicit
 ' Handles all sprite operations - positions, frames, visibility
 '###################################################################################
 
-' Sprite state
 Private Type SpriteState
     LinkSprite As Object
     LinkSpriteTop As Double
@@ -15,11 +14,9 @@ Private Type SpriteState
 End Type
 
 Private m_Sprite As SpriteState
-
-' Singleton pattern
-Private m_Instance As SpriteManager
 Private m_Initialized As Boolean
 
+'------------------------------- Initialization -------------------------------
 Private Sub Class_Initialize()
     If Not m_Initialized Then
         InitializeSprites
@@ -28,15 +25,33 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub InitializeSprites()
+    Dim wsGame As Worksheet
+    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    
     With m_Sprite
-        Set .LinkSprite = ActiveSheet.Shapes("LinkDown2")
+        Set .LinkSprite = wsGame.Shapes("LinkDown2")
         .LinkSpriteFrame = 2
         .LinkSpriteTop = .LinkSprite.Top
         .LinkSpriteLeft = .LinkSprite.Left
     End With
 End Sub
 
-' Sprite properties
+'------------------------------- Reset / Destroy -------------------------------
+Public Sub Reset()
+    With m_Sprite
+        .LinkSpriteTop = .LinkSprite.Top
+        .LinkSpriteLeft = .LinkSprite.Left
+        .LinkSpriteFrame = 2
+    End With
+    Call UpdateVisibility
+End Sub
+
+Public Sub Destroy()
+    Dim emptySprite As SpriteState
+    m_Sprite = emptySprite
+End Sub
+
+'------------------------------- Properties -------------------------------
 Public Property Get LinkSprite() As Object
     Set LinkSprite = m_Sprite.LinkSprite
 End Property
@@ -69,43 +84,29 @@ Public Property Let LinkSpriteFrame(ByVal Value As Integer)
     m_Sprite.LinkSpriteFrame = Value
 End Property
 
-' Sprite methods
+'------------------------------- Sprite Logic -------------------------------
 Public Sub UpdateFrame(ByVal direction As String, ByVal moveSpeed As Long)
     m_Sprite.LinkSpriteFrame = IIf(Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value >= 5, 1, 2)
     
-    ' Only update position if there's movement
-    If direction <> "" Then
-        Select Case direction
-            Case "U":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
-                m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop - moveSpeed
-            Case "D":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
-                m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop + moveSpeed
-            Case "L":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkLeft1"), ActiveSheet.Shapes("LinkLeft2"))
-                m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft - moveSpeed
-            Case "R":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkRight1"), ActiveSheet.Shapes("LinkRight2"))
-                m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft + moveSpeed
-            Case "LU", "UL":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
-                m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop - moveSpeed
-                m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft - moveSpeed
-            Case "RU", "UR":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkUp1"), ActiveSheet.Shapes("LinkUp2"))
-                m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop - moveSpeed
-                m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft + moveSpeed
-            Case "LD", "DL":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkDown2"), ActiveSheet.Shapes("LinkDown1"))
-                m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop + moveSpeed
-                m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft - moveSpeed
-            Case "RD", "DR":
-                Set m_Sprite.LinkSprite = IIf(m_Sprite.LinkSpriteFrame = 1, ActiveSheet.Shapes("LinkDown1"), ActiveSheet.Shapes("LinkDown2"))
-                m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop + moveSpeed
-                m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft + moveSpeed
-        End Select
-    End If
+    If direction = "" Then Exit Sub
+    
+    Dim wsGame As Worksheet
+    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    
+    Select Case direction
+        Case "U":
+            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkUp" & m_Sprite.LinkSpriteFrame)
+            m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop - moveSpeed
+        Case "D":
+            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkDown" & m_Sprite.LinkSpriteFrame)
+            m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop + moveSpeed
+        Case "L":
+            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkLeft" & m_Sprite.LinkSpriteFrame)
+            m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft - moveSpeed
+        Case "R":
+            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkRight" & m_Sprite.LinkSpriteFrame)
+            m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft + moveSpeed
+    End Select
 End Sub
 
 Public Sub UpdatePosition()
@@ -116,35 +117,30 @@ Public Sub UpdatePosition()
 End Sub
 
 Public Sub UpdateVisibility()
-    ' Hide all sprites first
-    Dim directions As Variant
-    directions = Array("Up", "Down", "Left", "Right")
-    Dim frames As Variant
-    frames = Array("1", "2")
+    Dim wsGame As Worksheet
+    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
     
+    Dim directions As Variant: directions = Array("Up", "Down", "Left", "Right")
+    Dim frames As Variant: frames = Array("1", "2")
     Dim dir As Variant, frame As Variant
+    
     For Each dir In directions
         For Each frame In frames
-            ActiveSheet.Shapes("Link" & dir & frame).Visible = False
+            wsGame.Shapes("Link" & dir & frame).Visible = False
         Next frame
     Next dir
     
-    ' Show only the active sprite
     m_Sprite.LinkSprite.Visible = True
 End Sub
 
 Public Sub AlignLinkSprites(ByVal leftPos As Double, ByVal topPos As Double)
+    Dim wsGame As Worksheet
+    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    
     Dim s As Variant
-    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
-        ActiveSheet.Shapes(s).Left = leftPos
-        ActiveSheet.Shapes(s).Top = topPos
+    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
+                        "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+        wsGame.Shapes(s).Left = leftPos
+        wsGame.Shapes(s).Top = topPos
     Next s
 End Sub
-
-' Singleton accessor
-Public Property Get Instance() As SpriteManager
-    If m_Instance Is Nothing Then
-        Set m_Instance = New SpriteManager
-    End If
-    Set Instance = m_Instance
-End Property

@@ -3,10 +3,7 @@ Option Explicit
 '###################################################################################
 '                              CORE GAME STATE
 '###################################################################################
-' Focused on core game state only - no sprite or action management
-'###################################################################################
 
-' Core game state
 Private Type State
     CurrentScreen As String
     GameSpeed As Long
@@ -14,17 +11,11 @@ Private Type State
     ScreenSetUpTimer As Long
 End Type
 
-Private m_State As State
-
-' Cell location tracking
 Private Type CellState
     LinkCellAddress As String
     CodeCell As String
 End Type
 
-Private m_CellState As CellState
-
-' Movement state
 Private Type MovementState
     MoveDir As String
     LastDir As String
@@ -32,20 +23,18 @@ Private Type MovementState
     IsFalling As Boolean
 End Type
 
-Private m_Movement As MovementState
-
-' Collision state
 Private Type CollisionState
     RNDBounceback As String
     CollidedWith As String
 End Type
 
+Private m_State As State
+Private m_CellState As CellState
+Private m_Movement As MovementState
 Private m_Collision As CollisionState
-
-' Singleton pattern
-Private m_Instance As GameState
 Private m_Initialized As Boolean
 
+'------------------------------- Initialization -------------------------------
 Private Sub Class_Initialize()
     If Not m_Initialized Then
         InitializeState
@@ -54,17 +43,39 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub InitializeState()
+    On Error Resume Next
     With m_State
         .GameSpeed = Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value
         .IsPaused = False
         .ScreenSetUpTimer = 0
     End With
-    
     With m_Movement
         .MoveSpeed = Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value
         .MoveDir = ""
-        .LastDir = "D" ' Default facing down
+        .LastDir = "D"
     End With
+    On Error GoTo 0
+End Sub
+
+'------------------------------- Reset / Destroy -----------------------------
+Public Sub Reset()
+    m_State.IsPaused = False
+    m_State.ScreenSetUpTimer = 0
+    m_Collision.CollidedWith = ""
+    m_Collision.RNDBounceback = ""
+    m_Movement.IsFalling = False
+    m_Movement.MoveDir = ""
+End Sub
+
+Public Sub Destroy()
+    Dim emptyState As State
+    Dim emptyCell As CellState
+    Dim emptyMove As MovementState
+    Dim emptyCollision As CollisionState
+    m_State = emptyState
+    m_CellState = emptyCell
+    m_Movement = emptyMove
+    m_Collision = emptyCollision
 End Sub
 
 ' Core game properties
