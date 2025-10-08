@@ -1,0 +1,12 @@
+# old/legacy files
+# old_files/
+*.xls
+*.xlsx
+
+# Copilot config
+.github/
+
+# temp/sys files
+*.temp
+*.bak
+~$*
