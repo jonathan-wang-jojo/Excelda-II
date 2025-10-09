@@ -1,4 +1,4 @@
-Attribute VB_Name = "AI_Friendlies"
+'Attribute VB_Name = "AI_Friendlies"
 Sub showMarin01()
 
 RNDenemyName1 = "MarinD"

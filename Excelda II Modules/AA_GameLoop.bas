@@ -1,3 +1,4 @@
+'Attribute VB_Name = "AA_GameLoop"
 Option Explicit
 
 '###################################################################################
@@ -17,224 +18,240 @@ Private m_EnemyManager As EnemyManager
 '###################################################################################
 '                              Main Game Loop
 '###################################################################################
+' Standard game pattern: Start ? Update ? Cleanup
 
-Public Sub RunGame()
+Public Sub Start()
+    ' Standard game entry point - call this to begin a new game
     On Error GoTo ErrorHandler
     
-    InitializeGame
-    ' Call calculateScreenLocation(linkDirection, linkCell)
-
-    GameLoop
+    ' Setup and start
+    Call StartGame
+    Call UpdateLoop
     
     Exit Sub
     
 ErrorHandler:
-    MsgBox "Error in RunGame: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Game Error"
-    Application.CutCopyMode = False
+    MsgBox "Game Error: " & Err.Description, vbCritical
     Sheets(SHEET_TITLE).Activate
 End Sub
 
-Private Sub InitializeGame()
-    On Error GoTo InitializeError
+Private Sub StartGame()
+    ' Initialize everything needed for a new game
+    On Error GoTo ErrorHandler
     
-    ' Initialize focused managers
+    ' Reset managers
+    Call ResetAllManagers
+    
+    ' Get manager instances
     Set m_GameState = GameStateInstance()
     Set m_SpriteManager = SpriteManagerInstance()
     Set m_ActionManager = ActionManagerInstance()
     Set m_EnemyManager = EnemyManagerInstance()
     
+    ' Setup starting state
+    Dim screen As String
+    screen = ActiveSheet.Name
+    
+    Dim direction As String
+    direction = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
+    If direction = "" Then direction = "D"
+    
+    ' Find Link sprite
+    Dim spriteName As String
+    spriteName = FindLinkSprite(screen)
+    If spriteName = "" Then Err.Raise vbObjectError + 1, "StartGame", "Link sprite not found"
+    
+    ' Initialize sprite manager
+    m_SpriteManager.Initialize screen, spriteName
+    m_SpriteManager.UpdateVisibility
+    
+    ' Set game state
+    m_GameState.CurrentScreen = screen
+    m_GameState.MoveDir = direction
+    m_GameState.LinkCellAddress = GetCellAddress(m_SpriteManager.LinkSprite.topLeftCell)
+    
+    ' Sync legacy globals
+    Set LinkSprite = m_SpriteManager.LinkSprite
+    CurrentScreen = screen
+    
+    ' Align view and run screen setup
+    Call alignScreen
+    On Error Resume Next
+    Call calculateScreenLocation("", direction)
+    If CurrentScreen <> "" Then Application.Run CurrentScreen
+    On Error GoTo ErrorHandler
+    
     Exit Sub
     
-InitializeError:
-    MsgBox "Error initializing game: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Initialization Error"
+ErrorHandler:
+    MsgBox "Start Error: " & Err.Description, vbCritical
+    Sheets(SHEET_TITLE).Activate
 End Sub
 
-Private Sub GameLoop()
-    On Error GoTo GameLoopError
+Private Sub UpdateLoop()
+    ' Main game loop - runs every frame
+    On Error GoTo ErrorHandler
     
     Do
-        ' Check for quit condition
-        If CheckQuitGame Then Exit Do
+        ' Quit check
+        If GetAsyncKeyState(KEY_Q) <> 0 Then Exit Do
         
-        ' Update game timers
-        UpdateTimers
+        ' Update game state
+        Call Update
         
-        ' Handle special game states
-        If HandleCollisionState Then GoTo ContinueLoop
-        If HandleFallingState Then GoTo ContinueLoop
-        
-        ' Process game logic
-        HandleMovementInput
-        UpdateSpriteFrames
-        HandleActionInput
-        HandleTriggers
-        HandleEnemies
-
-        ' Check for collisions after movement
-        If CheckCollision Then GoTo ContinueLoop
-
-        ' Update visual elements
-        UpdateSpriteVisibility
-
-ContinueLoop:
-        ' Update positions and sync
-        UpdateSpritePositions
-        SleepAndSync
-        
-        ' Yield control to Excel
-        DoEvents
+        ' Sleep for frame timing
+        Range("A1").Copy Range("A2")
+        'Sleep m_GameState.GameSpeed
+        Sleep TICK_RATE
+        Application.CutCopyMode = False
     Loop
     
+    ' Cleanup
+    Call DestroyAllManagers
+    Sheets(SHEET_TITLE).Activate
+    
     Exit Sub
     
-GameLoopError:
-    MsgBox "Error in GameLoop: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Game Loop Error"
-    Application.CutCopyMode = False
+ErrorHandler:
+    MsgBox "Update Error: " & Err.Description, vbCritical
+    Call DestroyAllManagers
+    Sheets(SHEET_TITLE).Activate
 End Sub
 
-'###################################################################################
-'                              Input Handling
-'###################################################################################
+Private Sub Update()
+    ' Core game update - called every frame
+    
+    ' Update timers
+    If m_GameState.ScreenSetUpTimer > 0 Then
+        m_GameState.ScreenSetUpTimer = m_GameState.ScreenSetUpTimer - 1
+    End If
+    
+    ' Handle collision bounce
+    If m_GameState.RNDBounceback <> "" Then
+        Call BounceBack(m_SpriteManager.LinkSprite, ActiveSheet.Shapes(m_GameState.CollidedWith))
+        m_GameState.RNDBounceback = ""
+    End If
+    
+    ' Check falling state
+    m_GameState.IsFalling = (Sheets(SHEET_DATA).Range(RANGE_FALLING).Value = "Y")
+    
+    ' Handle input and update
+    Call HandleInput
+    Call HandleTriggers
+    Call UpdateSprites
+End Sub
 
-Private Sub HandleMovementInput()
+Private Sub HandleInput()
+    ' Process player input
     Dim newDir As String
+    newDir = ""
     
     ' Check movement keys
+    If GetAsyncKeyState(KEY_UP) <> 0 Then newDir = newDir & "U"
+    If GetAsyncKeyState(KEY_DOWN) <> 0 Then newDir = newDir & "D"
     If GetAsyncKeyState(KEY_LEFT) <> 0 Then newDir = newDir & "L"
     If GetAsyncKeyState(KEY_RIGHT) <> 0 Then newDir = newDir & "R"
-    If GetAsyncKeyState(KEY_DOWN) <> 0 Then newDir = newDir & "D"
-    If GetAsyncKeyState(KEY_UP) <> 0 Then newDir = newDir & "U"
     
-    ' Update movement state
+    ' Update direction
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = newDir
-    
-    ' Update GameState
     m_GameState.MoveDir = newDir
-End Sub
-
-Private Sub HandleActionInput()
-    m_ActionManager.HandleActionKey KEY_C, m_ActionManager.CItem, m_ActionManager.CPress, RANGE_ACTION_C
-    m_ActionManager.HandleActionKey KEY_D, m_ActionManager.DItem, m_ActionManager.DPress, RANGE_ACTION_D
-End Sub
-
-'###################################################################################
-'                              Sprite Management
-'###################################################################################
-
-Private Sub UpdateSpriteFrames()
-    On Error GoTo SpriteFrameError
     
-    ' Update sprite frame and position through SpriteManager
+    ' Process actions
+    m_ActionManager.ProcessAction KEY_C, m_ActionManager.CItem, m_ActionManager.CPress
+    m_ActionManager.ProcessAction KEY_D, m_ActionManager.DItem, m_ActionManager.DPress
+End Sub
+
+Private Sub UpdateSprites()
+    ' Update sprite frames and positions
     m_SpriteManager.UpdateFrame m_GameState.MoveDir, m_GameState.MoveSpeed
-    
-    Exit Sub
-    
-SpriteFrameError:
-    MsgBox "Error in UpdateSpriteFrames: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Sprite Error"
-End Sub
-
-Private Sub UpdateSpritePositions()
-    ' Update sprite positions through SpriteManager
     m_SpriteManager.UpdatePosition
+    
+    ' Sync legacy global
+    Set LinkSprite = m_SpriteManager.LinkSprite
 End Sub
 
 '###################################################################################
 '                              Helper Functions
 '###################################################################################
 
-Private Function CheckQuitGame() As Boolean
-    If GetAsyncKeyState(KEY_Q) <> 0 Then
-        Call DestroyAllManagers
-
-        Application.CutCopyMode = False
-        Sheets(SHEET_TITLE).Activate
-        ActiveSheet.Range("A1").Select
-        CheckQuitGame = True
+Private Function GetCellAddress(ByVal rng As Range) As String
+    ' Get cell address from range (handles multi-cell ranges)
+    If rng.Cells.Count > 1 Then
+        GetCellAddress = rng.Cells(1, 1).Address
+    Else
+        GetCellAddress = rng.Address
     End If
 End Function
 
-Private Sub UpdateTimers()
-    If m_GameState.ScreenSetUpTimer > 0 Then m_GameState.ScreenSetUpTimer = m_GameState.ScreenSetUpTimer - 1
-End Sub
+Private Function FindLinkSprite(ByVal sheetName As String) As String
+    ' Find Link sprite on sheet
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = Sheets(sheetName)
+    
+    Dim names As Variant
+    names = Array("LinkDown1", "LinkDown2", "LinkUp1", "LinkUp2", _
+                  "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+    
+    Dim i As Integer
+    For i = LBound(names) To UBound(names)
+        If Not ws.Shapes(names(i)) Is Nothing Then
+            FindLinkSprite = names(i)
+            Exit Function
+        End If
+    Next i
 
-Private Function HandleCollisionState() As Boolean
-    If m_GameState.RNDBounceback <> "" Then
-        Call BounceBack(m_SpriteManager.LinkSprite, ActiveSheet.Shapes(m_GameState.CollidedWith))
-        HandleCollisionState = True
-    End If
+    FindLinkSprite = ""
 End Function
-
-Private Function HandleFallingState() As Boolean
-    HandleFallingState = (Sheets(SHEET_DATA).Range(RANGE_FALLING).Value = "Y")
-    m_GameState.IsFalling = HandleFallingState
-End Function
-
-Private Sub SleepAndSync()
-    Range("A1").Copy Range("A2")
-    Sleep m_GameState.GameSpeed
-    Application.CutCopyMode = False
-End Sub
 
 '###################################################################################
 '                              Trigger System
 '###################################################################################
 
 Private Sub HandleTriggers()
-    ' Update cell references
+    On Error Resume Next
+    
+    ' Get current cell address
     Dim currentCellAddress As String
-    currentCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
+    currentCellAddress = GetCellAddress(m_SpriteManager.LinkSprite.topLeftCell)
+    If currentCellAddress = "" Then Exit Sub
     
-    ' Update GameState
+    ' Store in state
     m_GameState.LinkCellAddress = currentCellAddress
-    
-    ' Store current location
     Sheets(SHEET_DATA).Range("C18").Value = currentCellAddress
     
-    ' Get and process code cell
-    Dim codeCellValue As String
-    codeCellValue = Range(currentCellAddress).Offset(3, 2).Value
+    ' Get trigger cell value
+    Dim targetCell As Range
+    Set targetCell = Sheets(m_GameState.CurrentScreen).Range(currentCellAddress).Offset(3, 2)
     
-    ' Update GameState
-    m_GameState.CodeCell = codeCellValue
+    Dim code As String
+    code = Trim(CStr(targetCell.Value))
+    If code = "" Then Exit Sub
     
-    ' Process triggers if code cell has content
-    If codeCellValue <> "" Then
-        Dim ScrollIndicator As String
-        Dim ScrollDir As String
-        Dim FallIndicator As String
-        Dim ActionIndicator As String
-        
-        ScrollIndicator = Left(codeCellValue, 1)
-        ScrollDir = Mid(codeCellValue, 2, 1)
-        FallIndicator = Mid(codeCellValue, 3, 2)
-        ActionIndicator = Mid(codeCellValue, 7, 2)
- 
-        ' Handle scroll triggers
-        If ScrollIndicator = "S" Then
-            Call myScroll(ScrollDir)
-        End If
-        
-        ' Handle movement triggers
-        Select Case FallIndicator
-            Case "FL"
-                Call Falling
-            Case "JD"
-                Call JumpDown
-        End Select
-        
-        ' Handle special actions
-        Select Case ActionIndicator
-            Case "RL"
-                Call Relocate(codeCellValue)
-                Exit Sub  ' Replaces GoTo startSub
-                
-            Case "ET"
-                Call EnemyTrigger(codeCellValue)
-                
-            Case "SE"
-                Call SpecialEventTrigger(codeCellValue)
-        End Select
-    End If
+    m_GameState.CodeCell = code
+    
+    ' Parse trigger code
+    Dim scrollInd As String, scrollDir As String
+    Dim fallInd As String, actionInd As String
+    
+    scrollInd = Left(code, 1)
+    scrollDir = Mid(code, 2, 1)
+    fallInd = Mid(code, 3, 2)
+    actionInd = Mid(code, 7, 2)
+    
+    ' Execute triggers
+    If scrollInd = "S" Then Call myScroll(scrollDir)
+    
+    Select Case fallInd
+        Case "FL": Call Falling
+        Case "JD": Call JumpDown
+    End Select
+    
+    Select Case actionInd
+        Case "RL": Call Relocate(code): Exit Sub
+        Case "ET": Call EnemyTrigger(code)
+        Case "SE": Call SpecialEventTrigger(code)
+    End Select
 End Sub
 
 '###################################################################################
@@ -242,10 +259,10 @@ End Sub
 '###################################################################################
 
 Private Sub HandleEnemies()
-    m_EnemyManager.HandleEnemy 1, m_SpriteManager.LinkSprite
-    m_EnemyManager.HandleEnemy 2, m_SpriteManager.LinkSprite
-    m_EnemyManager.HandleEnemy 3, m_SpriteManager.LinkSprite
-    m_EnemyManager.HandleEnemy 4, m_SpriteManager.LinkSprite
+    Dim i As Integer
+    For i = 1 To 4
+        m_EnemyManager.ProcessEnemy i, m_SpriteManager.LinkSprite
+    Next i
 End Sub
 
 '###################################################################################
@@ -343,14 +360,12 @@ Sub Relocate(ByVal location As String)
     End If
     
     ' Update all sprite positions
-    m_SpriteManager.AlignLinkSprites targetCell.Left, targetCell.Top
+    m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
     
-    ' Update GameState
-    m_SpriteManager.LinkSprite.Top = targetCell.Top
-    m_SpriteManager.LinkSprite.Left = targetCell.Left
+    ' Update sprite positions and game state
     m_SpriteManager.LinkSpriteLeft = targetCell.Left
     m_SpriteManager.LinkSpriteTop = targetCell.Top
-    m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
+    m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.topLeftCell.Address
     m_GameState.CodeCell = ""
     
     ' Screen alignment and setup
@@ -373,3 +388,4 @@ ScreenSetupError:
 RelocateError:
     MsgBox "Error in Relocate: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Relocate Error"
 End Sub
+

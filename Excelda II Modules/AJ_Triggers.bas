@@ -1,232 +1,186 @@
-Attribute VB_Name = "AJ_Triggers"
-Public TriggerCel
+'Attribute VB_Name = "AJ_Triggers"
+Option Explicit
 
-Global CollidedWith
-Global RNDBounceback
+'###################################################################################
+'                              TRIGGER SYSTEM
+'###################################################################################
 
-Global SwordHit
+' Module-level variables
+Public TriggerCel As String
 
-Global RNDEnemyBounceback1
-Global RNDEnemyBounceback2
-Global RNDEnemyBounceback3
-Global RNDEnemyBounceback4
+Global CollidedWith As String
+Global RNDBounceback As String
+Global SwordHit As Long
 
+Global RNDEnemyBounceback1 As String
+Global RNDEnemyBounceback2 As String
+Global RNDEnemyBounceback3 As String
+Global RNDEnemyBounceback4 As String
 
+'###################################################################################
+'                              ENEMY TRIGGERS
+'###################################################################################
 
-
-
-
-
-'###############################################################################
-'######      ##     ##     ###    ####     ###      #     ###      #############
-'########  ####  ##  ### ###   ##  ##   ##  ##  #####  #   #   #################
-'########  ####     #### ###  ######   ######     ###     ####    ##############
-'########  ####  ##  ### ###   ##   #   ##   #  #####  ##  ######   ############
-'########  ####  ##  #     ##     # ##     # #      #  ##  #       #############
-'###############################################################################
-
-Sub EnemyTrigger(triggerCode)
-
-Dim triggerLen
-triggerLen = Len(triggerCode)
-
-'S1XXXXETSK01DA1
-'S1XXXXETSK01DA10
-'S1XXXXETSK01DAB1
-'S1XXXXETSK01DAB10
-'S1XXXXETSK01DA100
-'S1XXXXETSK01DAB100
-
-
-Dim enemyIndicator
-enemyIndicator = Mid(triggerCode, 9, 2)
-
-Dim enemyNumber
-enemyNumber = Mid(triggerCode, 11, 2)
-
-Dim triggerDirection
-triggerDirection = Mid(triggerCode, 13, 1)
-
-Dim linkDirection
-linkDirection = Sheets("Data").Range("C21").Value
-
-'account for different range value lengths (e.g. A1 = 2, A10 = 3, A256 = 4, AA256 = 5)
-Select Case triggerLen
-
-    Case Is = 15
-        TriggerCel = Right(triggerCode, 2)
-        
-    Case Is = 16
-        TriggerCel = Right(triggerCode, 3)
-        
-    Case Is = 17
-        TriggerCel = Right(triggerCode, 4)
-        
-    Case Is = 18
-        TriggerCel = Right(triggerCode, 5)
-
-End Select
-
-Dim mySub
-Dim myEnemy
-Dim myShowHide
-
-'If InStr(linkDirection, triggerDirection) <> 0 Then
-myShowHide = "show"
-'Else
-'myShowHide = "hide"
-'End If
-
-Select Case enemyIndicator
-    Case Is = "SK"
-        myEnemy = "skeleton"
-    Case Is = "SC"
-        myEnemy = "sandcrab"
-    Case Is = "SD"
-        myEnemy = "soldier"
-    Case Is = "BD"
-        myEnemy = "bird"
-    Case Is = "OC"
-        myEnemy = "Octorok"
-    'Add more cases here...
-    Case Is = "GD"
-        myEnemy = "gordo"
-    Case Is = "MA"
-        myEnemy = "Marin"
-    Case Is = "TA"
-        myEnemy = "Tarin"
-            Case Is = "RC"
-        myEnemy = "Raccoon"
-    Case Else
-        Exit Sub
-        
-End Select
-
-
-mySub = myShowHide & myEnemy & enemyNumber
-
-
-Application.Run mySub
-
-
-End Sub
-
-Sub RNDEnemyMove(enemyNo)
-
-Dim myEnemyName, myEnemyBehaviour
-
-'Work out which of the four enemies to deal with
-    Select Case enemyNo
-
-        Case Is = 1
-            myEnemyBehaviour = RNDenemyBehaviour1
+Sub EnemyTrigger(triggerCode As String)
+    ' Process enemy trigger codes
+    On Error Resume Next
     
-        Case Is = 2
-            myEnemyBehaviour = RNDenemyBehaviour2
- 
-        Case Is = 3
-             myEnemyBehaviour = RNDenemyBehaviour3
-             
-        Case Is = 4
-             myEnemyBehaviour = RNDenemyBehaviour4
-             
+    Dim triggerLen As Long
+    triggerLen = Len(triggerCode)
+    
+    ' Example trigger codes:
+    ' S1XXXXETSK01DA1
+    ' S1XXXXETSK01DA10
+    ' S1XXXXETSK01DAB1
+    
+    Dim enemyIndicator As String
+    enemyIndicator = Mid(triggerCode, 9, 2)
+    
+    Dim enemyNumber As String
+    enemyNumber = Mid(triggerCode, 11, 2)
+    
+    Dim triggerDirection As String
+    triggerDirection = Mid(triggerCode, 13, 1)
+    
+    Dim linkDirection As String
+    linkDirection = Sheets(SHEET_DATA).Range("C21").Value
+    
+    ' Account for different range value lengths (e.g. A1 = 2, A10 = 3, A256 = 4, AA256 = 5)
+    Select Case triggerLen
+        Case 15
+            TriggerCel = Right(triggerCode, 2)
+        Case 16
+            TriggerCel = Right(triggerCode, 3)
+        Case 17
+            TriggerCel = Right(triggerCode, 4)
+        Case 18
+            TriggerCel = Right(triggerCode, 5)
     End Select
-
-
-'Work out which behaviour to apply
-    Select Case myEnemyBehaviour
-
-        Case Is = "Random"
-            Call moveRandom(enemyNo)
-
-        Case Is = "Chase"
-            'Call moveChase(enemyNo)
-        
-        Case Is = "Still"
-            Call moveStill(enemyNo)
-
-        Case Is = "StillFollow"
-            Call moveStillFollow(enemyNo)
-        
-        'Add more cases here...
-        
-        
+    
+    Dim mySub As String
+    Dim myEnemy As String
+    Dim myShowHide As String
+    
+    myShowHide = "show"
+    
+    ' Map enemy indicator to enemy type
+    Select Case enemyIndicator
+        Case "SK": myEnemy = "skeleton"
+        Case "SC": myEnemy = "sandcrab"
+        Case "SD": myEnemy = "soldier"
+        Case "BD": myEnemy = "bird"
+        Case "OC": myEnemy = "Octorok"
+        Case "GD": myEnemy = "gordo"
+        Case "MA": myEnemy = "Marin"
+        Case "TA": myEnemy = "Tarin"
+        Case "RC": myEnemy = "Raccoon"
+        Case Else
+            Exit Sub
     End Select
-
-
+    
+    mySub = myShowHide & myEnemy & enemyNumber
+    Application.Run mySub
 End Sub
 
+Sub RNDEnemyMove(enemyNo As Long)
+    ' Move enemy based on behavior pattern
+    On Error Resume Next
+    
+    Dim myEnemyBehaviour As String
+    
+    ' Determine which enemy to process
+    Select Case enemyNo
+        Case 1: myEnemyBehaviour = RNDenemyBehaviour1
+        Case 2: myEnemyBehaviour = RNDenemyBehaviour2
+        Case 3: myEnemyBehaviour = RNDenemyBehaviour3
+        Case 4: myEnemyBehaviour = RNDenemyBehaviour4
+    End Select
+    
+    ' Apply behavior
+    Select Case myEnemyBehaviour
+        Case "Random"
+            Call moveRandom(enemyNo)
+        Case "Chase"
+            ' Call moveChase(enemyNo)
+        Case "Still"
+            Call moveStill(enemyNo)
+        Case "StillFollow"
+            Call moveStillFollow(enemyNo)
+    End Select
+End Sub
 
-'Collisions
+'###################################################################################
+'                              COLLISION DETECTION
+'###################################################################################
 
-Sub enemyCollision(LinkImage, myEnemyImage)
-
-Dim overlap, sideOverlap, topOverlap As Boolean
-Dim myCollide
-
-myCollide = ""
-
-Select Case myEnemyImage
-        
-    Case Is = RNDenemyName1
-        myCollide = RNDenemyCanCollide1
-    Case Is = RNDenemyName2
-        myCollide = RNDenemyCanCollide2
-    Case Is = RNDenemyName3
-        myCollide = RNDenemyCanCollide3
-        'MsgBox "myCollide = " & myCollide
-    Case Is = RNDenemyName4
-        myCollide = RNDenemyCanCollide4
-End Select
-
-
-
-If myCollide = "Y" Then
- 
+Sub enemyCollision(LinkImage As Shape, myEnemyImage As String)
+    ' Check if Link collides with enemy
+    On Error Resume Next
+    
+    Dim overlap As Boolean, sideOverlap As Boolean, topOverlap As Boolean
+    Dim myCollide As String
+    Dim enemyImage As Shape
+    
+    ' Check if this enemy can collide
+    Select Case myEnemyImage
+        Case RNDenemyName1: myCollide = RNDenemyCanCollide1
+        Case RNDenemyName2: myCollide = RNDenemyCanCollide2
+        Case RNDenemyName3: myCollide = RNDenemyCanCollide3
+        Case RNDenemyName4: myCollide = RNDenemyCanCollide4
+    End Select
+    
+    If myCollide <> "Y" Then Exit Sub
+    
     Set enemyImage = ActiveSheet.Shapes(myEnemyImage)
-'check sides
+    
+    ' Check side overlap
     If LinkImage.Left < enemyImage.Left And enemyImage.Left <= LinkImage.Left + LinkImage.Width Then
         sideOverlap = True
     ElseIf enemyImage.Left < LinkImage.Left And LinkImage.Left <= enemyImage.Left + enemyImage.Width Then
         sideOverlap = True
     End If
-
-'check tops
+    
+    ' Check top overlap
     If LinkImage.Top < enemyImage.Top And enemyImage.Top <= LinkImage.Top + LinkImage.Height Then
         topOverlap = True
     ElseIf enemyImage.Top < LinkImage.Top And LinkImage.Top <= enemyImage.Top + enemyImage.Height Then
         topOverlap = True
     End If
-
-    If sideOverlap And topOverlap Then
-        overlap = True
-    End If
-
-    If overlap = True Then
-        If Sheets("Data").Range("C28").Value = "Y" Then
-        'Shield up
+    
+    overlap = (sideOverlap And topOverlap)
+    
+    If overlap Then
+        If Sheets(SHEET_DATA).Range("C28").Value = "Y" Then
+            ' Shield up - push enemy
             Call pushImage(myEnemyImage)
-            
         Else
-        'MsgBox ("Collided!")
-            RNDBounceback = Sheets("Data").Range("C23").Value
+            ' Take damage
+            RNDBounceback = Sheets(SHEET_DATA).Range("C23").Value
             CollidedWith = myEnemyImage
         End If
     End If
-
-End If
 End Sub
 
 Sub BounceBack(LinkImage, enemyImage)
-
-Dim myBounceBackSpeed, moveCellValue
-
-myBounceBackSpeed = Sheets("Data").Range("C23").Value
-
-Select Case moveDir
-
-    Case Is = ""
-        Select Case LinkSprite.Name
+    ' Bounce Link back when hit by enemy
+    On Error Resume Next
+    
+    Dim myBounceBackSpeed As Long
+    Dim moveCellValue As String
+    Dim currentDir As String
+    
+    ' Get bounce speed and direction from game state
+    myBounceBackSpeed = Sheets(SHEET_DATA).Range("C23").Value
+    currentDir = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
+    
+    ' Use last direction if no current movement
+    If currentDir = "" Then
+        currentDir = lastDir
+    End If
+    
+    Select Case currentDir
+        Case ""
+            Select Case LinkSprite.Name
       
             Case Is = "LinkDown1"
                 moveCellValue = Range(LinkImage.TopLeftCell.Address).Offset(-1, 2).Value
@@ -531,14 +485,14 @@ End Sub
 
 
 Sub enemyIdentify(whichEnemy)
-
-Dim myDir
-
-If moveDir <> "" Then
-    myDir = moveDir
-Else
-    myDir = lastDir
-End If
+    ' Identify which enemy was hit and apply damage
+    On Error Resume Next
+    
+    Dim myDir As String
+    
+    ' Get current direction from game state
+    myDir = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
+    If myDir = "" Then myDir = lastDir
 
 Select Case whichEnemy
 
@@ -842,10 +796,13 @@ End Sub
 
 
 Sub pushImage(myEnemyImage)
-
-Dim pushDir
-
-Select Case moveDir
+    ' Push enemy image when Link has shield up
+    On Error Resume Next
+    
+    Dim currentDir As String
+    currentDir = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
+    
+    Select Case currentDir
 
     Case Is = "U"
         ActiveSheet.Pictures(myEnemyImage).Top = ActiveSheet.Pictures(myEnemyImage).Top - 5

@@ -4,173 +4,137 @@ Option Explicit
 '                              CORE GAME STATE
 '###################################################################################
 
-Private Type State
+Private Type GameData
     CurrentScreen As String
     GameSpeed As Long
     IsPaused As Boolean
-    ScreenSetUpTimer As Long
-End Type
-
-Private Type CellState
-    LinkCellAddress As String
-    CodeCell As String
-End Type
-
-Private Type MovementState
     MoveDir As String
     LastDir As String
     MoveSpeed As Long
     IsFalling As Boolean
-End Type
-
-Private Type CollisionState
+    LinkCellAddress As String
+    CodeCell As String
     RNDBounceback As String
     CollidedWith As String
+    ScreenSetUpTimer As Long
 End Type
 
-Private m_State As State
-Private m_CellState As CellState
-Private m_Movement As MovementState
-Private m_Collision As CollisionState
-Private m_Initialized As Boolean
+Private m_Game As GameData
 
-'------------------------------- Initialization -------------------------------
+' Initialization
 Private Sub Class_Initialize()
-    If Not m_Initialized Then
-        InitializeState
-        m_Initialized = True
-    End If
-End Sub
-
-Private Sub InitializeState()
     On Error Resume Next
-    With m_State
+    With m_Game
         .GameSpeed = Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value
-        .IsPaused = False
-        .ScreenSetUpTimer = 0
-    End With
-    With m_Movement
         .MoveSpeed = Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value
+        .IsPaused = False
         .MoveDir = ""
         .LastDir = "D"
+        .IsFalling = False
+        .LinkCellAddress = ""
+        .CodeCell = ""
+        .RNDBounceback = ""
+        .CollidedWith = ""
+        .ScreenSetUpTimer = 0
     End With
     On Error GoTo 0
 End Sub
 
-'------------------------------- Reset / Destroy -----------------------------
+' Core lifecycle
 Public Sub Reset()
-    m_State.IsPaused = False
-    m_State.ScreenSetUpTimer = 0
-    m_Collision.CollidedWith = ""
-    m_Collision.RNDBounceback = ""
-    m_Movement.IsFalling = False
-    m_Movement.MoveDir = ""
+    m_Game.MoveDir = ""
+    m_Game.IsFalling = False
+    m_Game.RNDBounceback = ""
+    m_Game.CollidedWith = ""
+    m_Game.ScreenSetUpTimer = 0
 End Sub
 
 Public Sub Destroy()
-    Dim emptyState As State
-    Dim emptyCell As CellState
-    Dim emptyMove As MovementState
-    Dim emptyCollision As CollisionState
-    m_State = emptyState
-    m_CellState = emptyCell
-    m_Movement = emptyMove
-    m_Collision = emptyCollision
+    Reset
 End Sub
 
-' Core game properties
+' Essential properties
 Public Property Get CurrentScreen() As String
-    CurrentScreen = m_State.CurrentScreen
+    CurrentScreen = m_Game.CurrentScreen
 End Property
 
 Public Property Let CurrentScreen(ByVal Value As String)
-    m_State.CurrentScreen = Value
+    m_Game.CurrentScreen = Value
 End Property
 
 Public Property Get GameSpeed() As Long
-    GameSpeed = m_State.GameSpeed
+    GameSpeed = m_Game.GameSpeed
 End Property
 
 Public Property Get IsPaused() As Boolean
-    IsPaused = m_State.IsPaused
+    IsPaused = m_Game.IsPaused
 End Property
 
 Public Property Let IsPaused(ByVal Value As Boolean)
-    m_State.IsPaused = Value
+    m_Game.IsPaused = Value
 End Property
 
-Public Property Get ScreenSetUpTimer() As Long
-    ScreenSetUpTimer = m_State.ScreenSetUpTimer
-End Property
-
-Public Property Let ScreenSetUpTimer(ByVal Value As Long)
-    m_State.ScreenSetUpTimer = Value
-End Property
-
-' Movement properties
 Public Property Get MoveDir() As String
-    MoveDir = m_Movement.MoveDir
+    MoveDir = m_Game.MoveDir
 End Property
 
 Public Property Let MoveDir(ByVal Value As String)
-    m_Movement.MoveDir = Value
-    If Value <> "" Then m_Movement.LastDir = Value
+    m_Game.MoveDir = Value
+    If Value <> "" Then m_Game.LastDir = Value
 End Property
 
 Public Property Get LastDir() As String
-    LastDir = m_Movement.LastDir
+    LastDir = m_Game.LastDir
 End Property
 
 Public Property Get MoveSpeed() As Long
-    MoveSpeed = m_Movement.MoveSpeed
+    MoveSpeed = m_Game.MoveSpeed
 End Property
 
 Public Property Get IsFalling() As Boolean
-    IsFalling = m_Movement.IsFalling
+    IsFalling = m_Game.IsFalling
 End Property
 
 Public Property Let IsFalling(ByVal Value As Boolean)
-    m_Movement.IsFalling = Value
+    m_Game.IsFalling = Value
 End Property
 
-' Cell properties
 Public Property Get LinkCellAddress() As String
-    LinkCellAddress = m_CellState.LinkCellAddress
+    LinkCellAddress = m_Game.LinkCellAddress
 End Property
 
 Public Property Let LinkCellAddress(ByVal Value As String)
-    m_CellState.LinkCellAddress = Value
+    m_Game.LinkCellAddress = Value
 End Property
 
 Public Property Get CodeCell() As String
-    CodeCell = m_CellState.CodeCell
+    CodeCell = m_Game.CodeCell
 End Property
 
 Public Property Let CodeCell(ByVal Value As String)
-    m_CellState.CodeCell = Value
+    m_Game.CodeCell = Value
 End Property
 
-' Collision properties
 Public Property Get RNDBounceback() As String
-    RNDBounceback = m_Collision.RNDBounceback
+    RNDBounceback = m_Game.RNDBounceback
 End Property
 
 Public Property Let RNDBounceback(ByVal Value As String)
-    m_Collision.RNDBounceback = Value
+    m_Game.RNDBounceback = Value
 End Property
 
 Public Property Get CollidedWith() As String
-    CollidedWith = m_Collision.CollidedWith
+    CollidedWith = m_Game.CollidedWith
 End Property
 
 Public Property Let CollidedWith(ByVal Value As String)
-    m_Collision.CollidedWith = Value
+    m_Game.CollidedWith = Value
 End Property
 
-' Singleton accessor
-Public Property Get Instance() As GameState
-    If m_Instance Is Nothing Then
-        Set m_Instance = New GameState
-    End If
-    Set Instance = m_Instance
+Public Property Get ScreenSetUpTimer() As Long
+    ScreenSetUpTimer = m_Game.ScreenSetUpTimer
+End Property
+
+Public Property Let ScreenSetUpTimer(ByVal Value As Long)
+    m_Game.ScreenSetUpTimer = Value
 End Property

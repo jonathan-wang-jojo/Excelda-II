@@ -6,73 +6,58 @@ Option Explicit
 ' Handles all enemy state and operations
 '###################################################################################
 
-Private Type EnemyState
-    Name(1 To 4) As String
-    Hit(1 To 4) As Long
+Private Type EnemyData
+    Name As String
+    Hit As Long
 End Type
 
-Private m_Enemy As EnemyState
+Private m_Enemies(1 To 4) As EnemyData
 
 ' Initialization
 Private Sub Class_Initialize()
-    InitializeEnemies
+    Reset
 End Sub
 
-Private Sub InitializeEnemies()
-    Dim i As Long
-    For i = 1 To 4
-        m_Enemy.Name(i) = ""
-        m_Enemy.Hit(i) = 0
-    Next i
-End Sub
-
-' Reset enemy states (for restarts)
+' Core lifecycle methods
 Public Sub Reset()
     Dim i As Long
     For i = 1 To 4
-        m_Enemy.Hit(i) = 0
+        m_Enemies(i).Name = ""
+        m_Enemies(i).Hit = 0
     Next i
 End Sub
 
-' Cleanup (for full game quit)
 Public Sub Destroy()
-    Dim i As Long
-    For i = 1 To 4
-        m_Enemy.Name(i) = ""
-        m_Enemy.Hit(i) = 0
-    Next i
+    Reset
 End Sub
 
-' Enemy processing
-Public Sub HandleEnemy(ByVal enemyIndex As Integer, ByVal linkSprite As Object)
-    If enemyIndex < 1 Or enemyIndex > 4 Then Exit Sub
-
-    Dim enemyName As String
-    enemyName = m_Enemy.Name(enemyIndex)
-    If enemyName = "" Then Exit Sub
-
-    Call enemyCollision(linkSprite, enemyName)
-
-    If m_Enemy.Hit(enemyIndex) > 0 Then
-        Call enemyBounceBack(enemyIndex)
+' Core enemy processing - delegates to existing functions
+Public Sub ProcessEnemy(ByVal index As Integer, ByVal linkSprite As Object)
+    If index < 1 Or index > 4 Or m_Enemies(index).Name = "" Then Exit Sub
+    
+    Call enemyCollision(linkSprite, m_Enemies(index).Name)
+    
+    If m_Enemies(index).Hit > 0 Then
+        Call enemyBounceBack(index)
+        m_Enemies(index).Hit = m_Enemies(index).Hit - 1
     Else
-        Call RNDEnemyMove(enemyIndex)
+        Call RNDEnemyMove(index)
     End If
 End Sub
 
-' Enemy property accessors
-Public Property Get EnemyName(ByVal index As Integer) As String
-    EnemyName = m_Enemy.Name(index)
+' Simple accessors
+Public Property Get Name(ByVal index As Integer) As String
+    If index >= 1 And index <= 4 Then Name = m_Enemies(index).Name
 End Property
 
-Public Property Let EnemyName(ByVal index As Integer, ByVal Value As String)
-    m_Enemy.Name(index) = Value
+Public Property Let Name(ByVal index As Integer, ByVal Value As String)
+    If index >= 1 And index <= 4 Then m_Enemies(index).Name = Value
 End Property
 
-Public Property Get EnemyHit(ByVal index As Integer) As Long
-    EnemyHit = m_Enemy.Hit(index)
+Public Property Get Hit(ByVal index As Integer) As Long
+    If index >= 1 And index <= 4 Then Hit = m_Enemies(index).Hit
 End Property
 
-Public Property Let EnemyHit(ByVal index As Integer, ByVal Value As Long)
-    m_Enemy.Hit(index) = Value
+Public Property Let Hit(ByVal index As Integer, ByVal Value As Long)
+    If index >= 1 And index <= 4 Then m_Enemies(index).Hit = Value
 End Property

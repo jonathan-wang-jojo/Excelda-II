@@ -1,4 +1,4 @@
-Attribute VB_Name = "AIa_FriendlyAI"
+'Attribute VB_Name = "AIa_FriendlyAI"
 Sub moveStillFollow(enemyNumber)
 
 'work out which character

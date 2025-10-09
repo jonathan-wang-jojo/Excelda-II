@@ -1,4 +1,4 @@
-Attribute VB_Name = "AL_SpecialEvents"
+'Attribute VB_Name = "AL_SpecialEvents"
 
 Sub SpecialEventTrigger(EventCode)
 

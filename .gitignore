@@ -5,6 +5,7 @@
 
 # Copilot config
 .github/
+*.md
 
 # temp/sys files
 *.temp

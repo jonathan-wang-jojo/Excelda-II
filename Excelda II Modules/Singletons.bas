@@ -10,8 +10,12 @@ Option Explicit
 '   - SpriteManager
 '===================================================================================
 
-'------------------------------- GameState -------------------------------
 Private m_GameState As GameState
+Private m_ActionManager As ActionManager
+Private m_EnemyManager As EnemyManager
+Private m_SpriteManager As SpriteManager
+
+'------------------------------- GameState -------------------------------
 Public Function GameStateInstance() As GameState
     If m_GameState Is Nothing Then
         Set m_GameState = New GameState
@@ -20,7 +24,6 @@ Public Function GameStateInstance() As GameState
 End Function
 
 '------------------------------- ActionManager -------------------------------
-Private m_ActionManager As ActionManager
 Public Function ActionManagerInstance() As ActionManager
     If m_ActionManager Is Nothing Then
         Set m_ActionManager = New ActionManager
@@ -29,7 +32,6 @@ Public Function ActionManagerInstance() As ActionManager
 End Function
 
 '------------------------------- EnemyManager -------------------------------
-Private m_EnemyManager As EnemyManager
 Public Function EnemyManagerInstance() As EnemyManager
     If m_EnemyManager Is Nothing Then
         Set m_EnemyManager = New EnemyManager
@@ -38,7 +40,6 @@ Public Function EnemyManagerInstance() As EnemyManager
 End Function
 
 '------------------------------- SpriteManager -------------------------------
-Private m_SpriteManager As SpriteManager
 Public Function SpriteManagerInstance() As SpriteManager
     If m_SpriteManager Is Nothing Then
         Set m_SpriteManager = New SpriteManager
@@ -46,18 +47,18 @@ Public Function SpriteManagerInstance() As SpriteManager
     Set SpriteManagerInstance = m_SpriteManager
 End Function
 
-'------------------------------- Reset All Managers -------------------------------
+'------------------------------- Manager Lifecycle -------------------------------
 Public Sub ResetAllManagers()
-    If Not m_GameState Is Nothing Then m_GameState.InitializeState
+    If Not m_GameState Is Nothing Then m_GameState.Reset
     If Not m_ActionManager Is Nothing Then m_ActionManager.Reset
-    If Not m_EnemyManager Is Nothing Then m_EnemyManager.InitializeEnemies
+    If Not m_EnemyManager Is Nothing Then m_EnemyManager.Reset
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Reset
 End Sub
 
-'------------------------------- Destroy All Managers -------------------------------
 Public Sub DestroyAllManagers()
-    If Not m_GameState Is Nothing Then Set m_GameState = Nothing
-    If Not m_ActionManager Is Nothing Then Set m_ActionManager = Nothing
-    If Not m_EnemyManager Is Nothing Then Set m_EnemyManager = Nothing
-    If Not m_SpriteManager Is Nothing Then Set m_SpriteManager = Nothing
+    If Not m_GameState Is Nothing Then m_GameState.Destroy: Set m_GameState = Nothing
+    If Not m_ActionManager Is Nothing Then m_ActionManager.Destroy: Set m_ActionManager = Nothing
+    If Not m_EnemyManager Is Nothing Then m_EnemyManager.Destroy: Set m_EnemyManager = Nothing
+    If Not m_SpriteManager Is Nothing Then m_SpriteManager.Destroy: Set m_SpriteManager = Nothing
 End Sub
+'===================================================================================

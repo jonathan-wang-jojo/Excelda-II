@@ -1,5 +1,10 @@
 Option Explicit
 
+' Global variables for legacy compatibility
+Public LinkSprite As Object
+Public currentScreen As String
+Public mySub As String
+
 ' Game constants
 Public Const GAME_VERSION As String = "2.0.0"
 Public Const TICK_RATE As Long = 60

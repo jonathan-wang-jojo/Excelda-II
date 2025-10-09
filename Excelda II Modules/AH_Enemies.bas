@@ -1,4 +1,4 @@
-Attribute VB_Name = "AH_Enemies"
+'Attribute VB_Name = "AH_Enemies"
 '-------------------------------
 'Enemy 1
 

@@ -6,141 +6,178 @@ Option Explicit
 ' Handles all sprite operations - positions, frames, visibility
 '###################################################################################
 
-Private Type SpriteState
-    LinkSprite As Object
-    LinkSpriteTop As Double
-    LinkSpriteLeft As Double
-    LinkSpriteFrame As Integer
+Private Type SpriteData
+    LinkSprite As Shape
+    Top As Double
+    Left As Double
+    Frame As Integer
 End Type
 
-Private m_Sprite As SpriteState
-Private m_Initialized As Boolean
+Private m_Sprite As SpriteData
 
-'------------------------------- Initialization -------------------------------
+' Initialization
 Private Sub Class_Initialize()
-    If Not m_Initialized Then
-        InitializeSprites
-        m_Initialized = True
-    End If
+    m_Sprite.Frame = 2
 End Sub
 
-Private Sub InitializeSprites()
-    Dim wsGame As Worksheet
-    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+Public Sub Initialize(ByVal screenName As String, ByVal spriteName As String)
+    On Error GoTo ErrorHandler
     
-    With m_Sprite
-        Set .LinkSprite = wsGame.Shapes("LinkDown2")
-        .LinkSpriteFrame = 2
-        .LinkSpriteTop = .LinkSprite.Top
-        .LinkSpriteLeft = .LinkSprite.Left
-    End With
+    ' Find and set the sprite
+    Set m_Sprite.LinkSprite = Sheets(screenName).Shapes(spriteName)
+    
+    If m_Sprite.LinkSprite Is Nothing Then
+        Err.Raise vbObjectError + 1, "SpriteManager.Initialize", "Sprite '" & spriteName & "' not found on " & screenName
+    End If
+    
+    ' Set initial position from sprite's actual location
+    m_Sprite.Top = m_Sprite.LinkSprite.Top
+    m_Sprite.Left = m_Sprite.LinkSprite.Left
+    
+    ' Determine frame from sprite name (LinkDown1 = frame 1, LinkDown2 = frame 2, etc.)
+    If InStr(spriteName, "1") > 0 Then
+        m_Sprite.Frame = 1
+    ElseIf InStr(spriteName, "2") > 0 Then
+        m_Sprite.Frame = 2
+    Else
+        m_Sprite.Frame = 2  ' Default to frame 2
+    End If
+    
+    Exit Sub
+
+ErrorHandler:
+    ' Log error but don't crash - let caller handle it
+    Debug.Print "SpriteManager.Initialize Error: " & Err.Description
+    On Error GoTo 0
 End Sub
 
-'------------------------------- Reset / Destroy -------------------------------
+' Core lifecycle
 Public Sub Reset()
-    With m_Sprite
-        .LinkSpriteTop = .LinkSprite.Top
-        .LinkSpriteLeft = .LinkSprite.Left
-        .LinkSpriteFrame = 2
-    End With
-    Call UpdateVisibility
+    On Error Resume Next
+    
+    Dim gs As GameState
+    Set gs = GameStateInstance
+    
+    If Not gs Is Nothing And gs.CurrentScreen <> "" Then
+        ' Try to reset to last known sprite or default to LinkDown2
+        Set m_Sprite.LinkSprite = Sheets(gs.CurrentScreen).Shapes("LinkDown2")
+        
+        If Not m_Sprite.LinkSprite Is Nothing Then
+            m_Sprite.Top = m_Sprite.LinkSprite.Top
+            m_Sprite.Left = m_Sprite.LinkSprite.Left
+            m_Sprite.Frame = 2
+        End If
+    End If
+    
+    On Error GoTo 0
 End Sub
 
 Public Sub Destroy()
-    Dim emptySprite As SpriteState
-    m_Sprite = emptySprite
+    Set m_Sprite.LinkSprite = Nothing
+    m_Sprite.Top = 0
+    m_Sprite.Left = 0
+    m_Sprite.Frame = 0
 End Sub
 
-'------------------------------- Properties -------------------------------
+
+' Essential properties
 Public Property Get LinkSprite() As Object
     Set LinkSprite = m_Sprite.LinkSprite
 End Property
 
-Public Property Set LinkSprite(ByVal Value As Object)
-    Set m_Sprite.LinkSprite = Value
-End Property
-
 Public Property Get LinkSpriteTop() As Double
-    LinkSpriteTop = m_Sprite.LinkSpriteTop
+    LinkSpriteTop = m_Sprite.Top
 End Property
 
 Public Property Let LinkSpriteTop(ByVal Value As Double)
-    m_Sprite.LinkSpriteTop = Value
+    m_Sprite.Top = Value
 End Property
 
 Public Property Get LinkSpriteLeft() As Double
-    LinkSpriteLeft = m_Sprite.LinkSpriteLeft
+    LinkSpriteLeft = m_Sprite.Left
 End Property
 
 Public Property Let LinkSpriteLeft(ByVal Value As Double)
-    m_Sprite.LinkSpriteLeft = Value
+    m_Sprite.Left = Value
 End Property
 
 Public Property Get LinkSpriteFrame() As Integer
-    LinkSpriteFrame = m_Sprite.LinkSpriteFrame
+    LinkSpriteFrame = m_Sprite.Frame
 End Property
 
 Public Property Let LinkSpriteFrame(ByVal Value As Integer)
-    m_Sprite.LinkSpriteFrame = Value
+    m_Sprite.Frame = Value
 End Property
 
-'------------------------------- Sprite Logic -------------------------------
+' Core sprite operations - delegates to optimized logic
 Public Sub UpdateFrame(ByVal direction As String, ByVal moveSpeed As Long)
-    m_Sprite.LinkSpriteFrame = IIf(Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value >= 5, 1, 2)
+    On Error Resume Next
     
-    If direction = "" Then Exit Sub
+    m_Sprite.Frame = IIf(Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value >= 5, 1, 2)
     
-    Dim wsGame As Worksheet
-    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    If direction <> "" Then
+        Set m_Sprite.LinkSprite = Sheets(GameStateInstance.CurrentScreen).Shapes("Link" & _
+            IIf(direction = "U", "Up", IIf(direction = "D", "Down", IIf(direction = "L", "Left", "Right"))) & _
+            m_Sprite.Frame)
+        
+        ' Sync global for legacy code compatibility
+        Set LinkSprite = m_Sprite.LinkSprite
+        
+        Dim newTop As Double, newLeft As Double
+        newTop = m_Sprite.Top
+        newLeft = m_Sprite.Left
+
+        ' Adjust position based on direction components
+        If InStr(direction, "U") > 0 Then newTop = newTop - moveSpeed
+        If InStr(direction, "D") > 0 Then newTop = newTop + moveSpeed
+        If InStr(direction, "L") > 0 Then newLeft = newLeft - moveSpeed
+        If InStr(direction, "R") > 0 Then newLeft = newLeft + moveSpeed
+
+        ' Update sprite position
+        m_Sprite.Top = newTop
+        m_Sprite.Left = newLeft
+    End If
     
-    Select Case direction
-        Case "U":
-            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkUp" & m_Sprite.LinkSpriteFrame)
-            m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop - moveSpeed
-        Case "D":
-            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkDown" & m_Sprite.LinkSpriteFrame)
-            m_Sprite.LinkSpriteTop = m_Sprite.LinkSpriteTop + moveSpeed
-        Case "L":
-            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkLeft" & m_Sprite.LinkSpriteFrame)
-            m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft - moveSpeed
-        Case "R":
-            Set m_Sprite.LinkSprite = wsGame.Shapes("LinkRight" & m_Sprite.LinkSpriteFrame)
-            m_Sprite.LinkSpriteLeft = m_Sprite.LinkSpriteLeft + moveSpeed
-    End Select
+    On Error GoTo 0
 End Sub
 
 Public Sub UpdatePosition()
-    With m_Sprite
-        .LinkSprite.Top = .LinkSpriteTop
-        .LinkSprite.Left = .LinkSpriteLeft
-    End With
+    On Error Resume Next
+    m_Sprite.LinkSprite.Top = m_Sprite.Top
+    m_Sprite.LinkSprite.Left = m_Sprite.Left
+    On Error GoTo 0
 End Sub
 
 Public Sub UpdateVisibility()
-    Dim wsGame As Worksheet
-    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    On Error Resume Next
     
-    Dim directions As Variant: directions = Array("Up", "Down", "Left", "Right")
-    Dim frames As Variant: frames = Array("1", "2")
-    Dim dir As Variant, frame As Variant
+    Dim wsGame As Worksheet: Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    Dim s As Variant
     
-    For Each dir In directions
-        For Each frame In frames
-            wsGame.Shapes("Link" & dir & frame).Visible = False
-        Next frame
-    Next dir
+    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
+                        "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+        wsGame.Shapes(s).Visible = False
+    Next s
     
     m_Sprite.LinkSprite.Visible = True
+    
+    On Error GoTo 0
 End Sub
 
-Public Sub AlignLinkSprites(ByVal leftPos As Double, ByVal topPos As Double)
-    Dim wsGame As Worksheet
-    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+Public Sub AlignSprites(ByVal leftPos As Double, ByVal topPos As Double)
+    On Error Resume Next
     
+    m_Sprite.Left = leftPos
+    m_Sprite.Top = topPos
+    
+    Dim wsGame As Worksheet: Set wsGame = Sheets(GameStateInstance.CurrentScreen)
     Dim s As Variant
+    
     For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
                         "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
         wsGame.Shapes(s).Left = leftPos
         wsGame.Shapes(s).Top = topPos
     Next s
+    
+    On Error GoTo 0
 End Sub
