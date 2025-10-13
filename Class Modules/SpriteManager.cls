@@ -35,7 +35,6 @@ Public Sub Initialize(ByVal screenName As String, ByVal spriteName As String)
     ' Set initial position from sprite's actual location
     m_Sprite.Top = m_Sprite.LinkSprite.Top
     m_Sprite.Left = m_Sprite.LinkSprite.Left
-    Sheets(SHEET_DATA).Range(RANGE_ANIM_COUNTER).Value = 0
     
     ' Determine frame from sprite name (LinkDown1 = frame 1, LinkDown2 = frame 2, etc.)
     If InStr(spriteName, "1") > 0 Then
@@ -70,7 +69,6 @@ Public Sub Reset()
             m_Sprite.Left = m_Sprite.LinkSprite.Left
             m_Sprite.Frame = 1
             m_Sprite.FrameCounter = 0
-            Sheets(SHEET_DATA).Range(RANGE_ANIM_COUNTER).Value = 0
         End If
     End If
     
@@ -117,22 +115,12 @@ End Property
 
 ' Core sprite operations - delegates to optimized logic
 Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, ByVal moveSpeed As Long)
-    On Error GoTo CleanExit
+    On Error Resume Next
     Dim gs As GameState
     Set gs = GameStateInstance
 
-    If gs Is Nothing Or gs.CurrentScreen = "" Then GoTo CleanExit
-
-    m_Sprite.FrameCounter = (m_Sprite.FrameCounter + 1) Mod 10
-    If m_Sprite.FrameCounter >= 5 Then
-        m_Sprite.Frame = 1
-    Else
-        m_Sprite.Frame = 2
-    End If
-
-    On Error Resume Next
-    Sheets(SHEET_DATA).Range(RANGE_ANIM_COUNTER).Value = m_Sprite.FrameCounter
-    On Error GoTo CleanExit
+    m_Sprite.FrameCounter = (m_Sprite.FrameCounter + 1) Mod 6
+    m_Sprite.Frame = IIf(m_Sprite.FrameCounter < 3, 1, 2)
     
     If facingDir = "" Then
         If Not gs Is Nothing Then
@@ -146,23 +134,7 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     
     Dim ws As Worksheet
     Set ws = Sheets(gs.CurrentScreen)
-
-    Dim target As Shape
-    Dim targetName As String
-    targetName = "Link" & baseDir & CStr(m_Sprite.Frame)
-    Set target = GetShapeIfExists(ws, targetName)
-    If target Is Nothing Then
-        Dim fallbackFrame As Integer
-        fallbackFrame = IIf(m_Sprite.Frame = 1, 2, 1)
-        targetName = "Link" & baseDir & CStr(fallbackFrame)
-        Set target = GetShapeIfExists(ws, targetName)
-        If target Is Nothing Then
-            Debug.Print "SpriteManager.UpdateFrame missing sprite: " & targetName
-            GoTo CleanExit
-        End If
-        m_Sprite.Frame = fallbackFrame
-    End If
-    Set m_Sprite.LinkSprite = target
+    Set m_Sprite.LinkSprite = ws.Shapes("Link" & baseDir & m_Sprite.Frame)
     
     ' Sync global for legacy code compatibility
     Set LinkSprite = m_Sprite.LinkSprite
@@ -180,7 +152,6 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     m_Sprite.Top = newTop
     m_Sprite.Left = newLeft
     
-CleanExit:
     On Error GoTo 0
 End Sub
 
@@ -203,9 +174,7 @@ Public Sub UpdateVisibility()
         wsGame.Shapes(s).Visible = False
     Next s
     
-    If Not m_Sprite.LinkSprite Is Nothing Then
-        m_Sprite.LinkSprite.Visible = True
-    End If
+    m_Sprite.LinkSprite.Visible = True
     
     On Error GoTo 0
 End Sub
@@ -255,13 +224,3 @@ Private Sub SyncAllLinkFrames()
     Next s
     On Error GoTo 0
 End Sub
-
-Private Function GetShapeIfExists(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
-    On Error Resume Next
-    Set GetShapeIfExists = ws.Shapes(shapeName)
-    If Err.Number <> 0 Then
-        Err.Clear
-        Set GetShapeIfExists = Nothing
-    End If
-    On Error GoTo 0
-End Function

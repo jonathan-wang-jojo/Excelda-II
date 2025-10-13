@@ -14,6 +14,7 @@ Private m_GameState As GameState
 Private m_ActionManager As ActionManager
 Private m_EnemyManager As EnemyManager
 Private m_SpriteManager As SpriteManager
+Private m_FriendlyManager As FriendlyManager
 
 '------------------------------- GameState -------------------------------
 Public Function GameStateInstance() As GameState
@@ -47,12 +48,21 @@ Public Function SpriteManagerInstance() As SpriteManager
     Set SpriteManagerInstance = m_SpriteManager
 End Function
 
+'------------------------------- FriendlyManager -------------------------------
+Public Function FriendlyManagerInstance() As FriendlyManager
+    If m_FriendlyManager Is Nothing Then
+        Set m_FriendlyManager = New FriendlyManager
+    End If
+    Set FriendlyManagerInstance = m_FriendlyManager
+End Function
+
 '------------------------------- Manager Lifecycle -------------------------------
 Public Sub ResetAllManagers()
     If Not m_GameState Is Nothing Then m_GameState.Reset
     If Not m_ActionManager Is Nothing Then m_ActionManager.Reset
     If Not m_EnemyManager Is Nothing Then m_EnemyManager.Reset
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Reset
+    If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Reset
 End Sub
 
 Public Sub DestroyAllManagers()
@@ -60,5 +70,6 @@ Public Sub DestroyAllManagers()
     If Not m_ActionManager Is Nothing Then m_ActionManager.Destroy: Set m_ActionManager = Nothing
     If Not m_EnemyManager Is Nothing Then m_EnemyManager.Destroy: Set m_EnemyManager = Nothing
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Destroy: Set m_SpriteManager = Nothing
+    If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Destroy: Set m_FriendlyManager = Nothing
 End Sub
 '===================================================================================

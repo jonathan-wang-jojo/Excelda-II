@@ -189,10 +189,10 @@ Private Sub HandleInput()
     On Error GoTo 0
     
     ' Check movement keys
-    If GetAsyncKeyState(KEY_UP) <> 0 Then newDir = newDir & "U"
-    If GetAsyncKeyState(KEY_DOWN) <> 0 Then newDir = newDir & "D"
-    If GetAsyncKeyState(KEY_LEFT) <> 0 Then newDir = newDir & "L"
-    If GetAsyncKeyState(KEY_RIGHT) <> 0 Then newDir = newDir & "R"
+    If IsKeyPressed(KEY_UP) Then newDir = newDir & "U"
+    If IsKeyPressed(KEY_DOWN) Then newDir = newDir & "D"
+    If IsKeyPressed(KEY_LEFT) Then newDir = newDir & "L"
+    If IsKeyPressed(KEY_RIGHT) Then newDir = newDir & "R"
     
     ' Block movement if collision detected
     If newDir <> "" And Not currentCell Is Nothing Then
@@ -277,6 +277,12 @@ Private Function IsQuitRequested() As Boolean
     Dim keyState As Long
     keyState = GetAsyncKeyState(KEY_Q)
     IsQuitRequested = ((keyState And &H8000&) <> 0)
+End Function
+
+Private Function IsKeyPressed(ByVal vKey As Integer) As Boolean
+    Dim state As Long
+    state = GetAsyncKeyState(vKey)
+    IsKeyPressed = ((state And &H8000&) <> 0)
 End Function
 
 Private Function FindLinkSprite(ByVal sheetName As String) As String
@@ -419,6 +425,11 @@ Sub Relocate(ByVal code As String)
     Dim mapSheet As Worksheet
     Dim targetCell As Range
     Dim setupMacro As String
+
+    If Len(Trim$(code)) > 0 And Left$(Trim$(code), 1) <> "S" Then
+        Call RelocateToSimpleLocation(code)
+        Exit Sub
+    End If
     
     scrollDir = Mid$(code, 2, 1)
     offsetDir = Mid$(code, 13, 1)
@@ -459,6 +470,61 @@ ScreenSetupError:
     
 RelocateError:
     MsgBox "Error in Relocate: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Relocate Error"
+End Sub
+
+Private Sub RelocateToSimpleLocation(ByVal location As String)
+    On Error GoTo RelocateSimpleError
+    location = Trim$(location)
+    If location = "" Then Exit Sub
+
+    Dim gs As GameState
+    If m_GameState Is Nothing Then
+        Set gs = GameStateInstance()
+    Else
+        Set gs = m_GameState
+    End If
+    If gs Is Nothing Or gs.CurrentScreen = "" Then Exit Sub
+
+    Dim ws As Worksheet
+    Set ws = Sheets(gs.CurrentScreen)
+
+    Dim dataSheet As Worksheet
+    Set dataSheet = Sheets(SHEET_DATA)
+
+    Dim targetCell As Range
+    On Error Resume Next
+    Set targetCell = ws.Range(location)
+    On Error GoTo RelocateSimpleError
+
+    If targetCell Is Nothing Then
+        Dim cellId As String
+        cellId = Right$(location, 4)
+        If cellId <> "" Then
+            Set targetCell = ws.Cells.Find(What:=cellId, After:=ws.Cells(1, 1), LookIn:=xlFormulas, _
+                LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=True)
+        End If
+    End If
+
+    If targetCell Is Nothing Then Exit Sub
+
+    m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
+    m_SpriteManager.LinkSpriteLeft = targetCell.Left
+    m_SpriteManager.LinkSpriteTop = targetCell.Top
+    Set LinkSprite = m_SpriteManager.LinkSprite
+
+    gs.LinkCellAddress = targetCell.Address
+    dataSheet.Range(RANGE_CURRENT_CELL).Value = gs.LinkCellAddress
+    gs.CodeCell = ""
+
+    Call alignScreen
+    On Error Resume Next
+    Call calculateScreenLocation("", "")
+    On Error GoTo RelocateSimpleError
+
+    Exit Sub
+
+RelocateSimpleError:
+    Debug.Print "RelocateToSimpleLocation error: " & Err.Description
 End Sub
 
 Private Sub DisableExcelNavigation()
