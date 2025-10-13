@@ -137,9 +137,13 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal linkDirection As St
     Dim myColumn As Long, myRow As Long
     Dim baseRow As Long, baseColumn As Long
     Dim baseCell As Range
+    Dim mapSheet As Worksheet
+    
+    If gs.CurrentScreen = "" Or gs.LinkCellAddress = "" Then Exit Sub
+    Set mapSheet = Sheets(gs.CurrentScreen)
     
     ' Get base position from sprite
-    Set baseCell = Range(gs.LinkCellAddress)
+    Set baseCell = mapSheet.Range(gs.LinkCellAddress)
     baseRow = baseCell.Row
     baseColumn = baseCell.Column
     
@@ -172,11 +176,11 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal linkDirection As St
     
     ' Get screen identifiers from calculated position
     Dim myRowValue As String, myColumnValue As String
-    myRowValue = Cells(myRow, 7).Value
-    myColumnValue = Cells(1, myColumn).Value
+    myRowValue = CStr(mapSheet.Cells(myRow, 7).Value)
+    myColumnValue = CStr(mapSheet.Cells(1, myColumn).Value)
     
     ' Set current screen
-    CurrentScreen = myRowValue & myColumnValue
+    gs.CurrentScreen = myRowValue & myColumnValue
     
     Exit Sub
     
@@ -187,23 +191,24 @@ End Sub
 Sub alignScreen()
     On Error GoTo ErrorHandler
     
-    Dim myColumn As Long, myRow As Long
+    Dim gs As GameState
+    Dim mapSheet As Worksheet
+    Dim linkCell As Range
     Dim offsetRow As Long, offsetColumn As Long
-    Dim myTopLeft As String
+    Dim topLeft As Range
     
-    ' Get current position
-    myColumn = ActiveCell.Column
-    myRow = ActiveCell.Row
+    Set gs = GameStateInstance()
+    If gs.CurrentScreen = "" Or gs.LinkCellAddress = "" Then Exit Sub
     
-    ' Get screen offset values from data sheet
-    offsetRow = Cells(myRow, 8).Value
-    offsetColumn = Cells(2, myColumn).Value
+    Set mapSheet = Sheets(gs.CurrentScreen)
+    Set linkCell = mapSheet.Range(gs.LinkCellAddress)
     
-    ' Calculate top-left position for screen alignment
-    myTopLeft = ActiveCell.Offset(-offsetRow + 1, -offsetColumn + 1).Address
+    offsetRow = CLng(Val(mapSheet.Cells(linkCell.Row, 8).Value))
+    offsetColumn = CLng(Val(mapSheet.Cells(2, linkCell.Column).Value))
     
-    ' Navigate to calculated position
-    Application.GoTo ActiveSheet.Range(myTopLeft), True
+    Set topLeft = linkCell.Offset(-offsetRow + 1, -offsetColumn + 1)
+    mapSheet.Activate
+    Application.GoTo topLeft, True
     
     Exit Sub
     

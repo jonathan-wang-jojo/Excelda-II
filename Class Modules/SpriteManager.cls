@@ -17,7 +17,7 @@ Private m_Sprite As SpriteData
 
 ' Initialization
 Private Sub Class_Initialize()
-    m_Sprite.Frame = 2
+    m_Sprite.Frame = 1
 End Sub
 
 Public Sub Initialize(ByVal screenName As String, ByVal spriteName As String)
@@ -65,7 +65,7 @@ Public Sub Reset()
         If Not m_Sprite.LinkSprite Is Nothing Then
             m_Sprite.Top = m_Sprite.LinkSprite.Top
             m_Sprite.Left = m_Sprite.LinkSprite.Left
-            m_Sprite.Frame = 2
+            m_Sprite.Frame = 1
         End If
     End If
     

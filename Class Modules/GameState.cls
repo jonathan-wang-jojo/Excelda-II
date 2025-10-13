@@ -25,7 +25,7 @@ Private m_Game As GameData
 Private Sub Class_Initialize()
     On Error Resume Next
     With m_Game
-        .GameSpeed = Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value
+        .GameSpeed = ReadGameSpeed()
         .MoveSpeed = Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value
         .IsPaused = False
         .MoveDir = ""
@@ -42,6 +42,7 @@ End Sub
 
 ' Core lifecycle
 Public Sub Reset()
+    m_Game.GameSpeed = ReadGameSpeed()
     m_Game.MoveDir = ""
     m_Game.IsFalling = False
     m_Game.RNDBounceback = ""
@@ -64,6 +65,14 @@ End Property
 
 Public Property Get GameSpeed() As Long
     GameSpeed = m_Game.GameSpeed
+End Property
+
+Public Property Let GameSpeed(ByVal Value As Long)
+    If Value <= 0 Then
+        m_Game.GameSpeed = DEFAULT_GAME_SPEED
+    Else
+        m_Game.GameSpeed = Value
+    End If
 End Property
 
 Public Property Get IsPaused() As Boolean
@@ -138,3 +147,12 @@ End Property
 Public Property Let ScreenSetUpTimer(ByVal Value As Long)
     m_Game.ScreenSetUpTimer = Value
 End Property
+
+Private Function ReadGameSpeed() As Long
+    On Error Resume Next
+    Dim value As Long
+    value = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
+    If value <= 0 Then value = DEFAULT_GAME_SPEED
+    ReadGameSpeed = value
+    On Error GoTo 0
+End Function

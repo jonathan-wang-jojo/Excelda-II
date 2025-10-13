@@ -44,7 +44,12 @@ End Sub
 
 Sub hideMarin01()
 
-resetEnemy1
+' Reset enemy slot 1 through EnemyManager
+Dim manager As EnemyManager
+Set manager = EnemyManagerInstance()
+If Not manager Is Nothing Then
+    manager.DespawnEnemy 1, 46
+End If
 
 ActiveSheet.Shapes("MarinU").Rotation = 0
 ActiveSheet.Shapes("MarinD").Rotation = 0
@@ -106,7 +111,12 @@ End Sub
 
 Sub hideTarin02()
 
-resetEnemy2
+' Reset enemy slot 2 through EnemyManager
+Dim manager As EnemyManager
+Set manager = EnemyManagerInstance()
+If Not manager Is Nothing Then
+    manager.DespawnEnemy 2, 47
+End If
 
 ActiveSheet.Shapes("TarinU").Rotation = 0
 ActiveSheet.Shapes("TarinD").Rotation = 0
@@ -167,7 +177,12 @@ End Sub
 
 Sub hideRaccoon01()
 
-resetEnemy1
+' Reset enemy slot 1 through EnemyManager
+Dim manager As EnemyManager
+Set manager = EnemyManagerInstance()
+If Not manager Is Nothing Then
+    manager.DespawnEnemy 1, 49
+End If
 
 ActiveSheet.Shapes("RaccoonU").Rotation = 0
 ActiveSheet.Shapes("RaccoonD").Rotation = 0

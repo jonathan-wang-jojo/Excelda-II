@@ -1,11 +1,8 @@
-Attribute VB_Name = "Test"
+' Attribute VB_Name = "Test"
 Sub resetALL()
 
-'reset all enemies
-resetEnemy1
-resetEnemy2
-resetEnemy3
-resetEnemy4
+'reset all enemies through EnemyManager
+Call ResetAllEnemies
 
 'hide all pictures
 Dim sh As Shape

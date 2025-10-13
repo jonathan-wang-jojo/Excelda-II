@@ -51,6 +51,8 @@ Private Sub StartGame()
     ' Setup starting state
     Dim screen As String
     screen = ActiveSheet.Name
+
+    DisableExcelNavigation
     
     Dim direction As String
     direction = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
@@ -68,11 +70,13 @@ Private Sub StartGame()
     ' Set game state
     m_GameState.CurrentScreen = screen
     m_GameState.MoveDir = direction
-    m_GameState.LinkCellAddress = GetCellAddress(m_SpriteManager.LinkSprite.topLeftCell)
+    m_GameState.GameSpeed = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
     
     ' Sync legacy globals
     Set LinkSprite = m_SpriteManager.LinkSprite
     CurrentScreen = screen
+    m_GameState.LinkCellAddress = LinkSprite.TopLeftCell.Address
+    Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = m_GameState.LinkCellAddress
     
     ' Align view and run screen setup
     Call alignScreen
@@ -84,6 +88,7 @@ Private Sub StartGame()
     Exit Sub
     
 ErrorHandler:
+    RestoreExcelNavigation
     MsgBox "Start Error: " & Err.Description, vbCritical
     Sheets(SHEET_TITLE).Activate
 End Sub
@@ -91,6 +96,7 @@ End Sub
 Private Sub UpdateLoop()
     ' Main game loop - runs every frame
     On Error GoTo ErrorHandler
+    Dim frameDelay As Long
     
     Do
         ' Quit check
@@ -100,14 +106,19 @@ Private Sub UpdateLoop()
         Call Update
         
         ' Sleep for frame timing
-        Range("A1").Copy Range("A2")
-        'Sleep m_GameState.GameSpeed
-        Sleep TICK_RATE
-        Application.CutCopyMode = False
+        frameDelay = m_GameState.GameSpeed
+        If frameDelay <= 0 Then
+            frameDelay = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
+            If frameDelay <= 0 Then frameDelay = DEFAULT_GAME_SPEED
+            m_GameState.GameSpeed = frameDelay
+        End If
+    Sleep frameDelay
+    DoEvents
     Loop
     
     ' Cleanup
     Call DestroyAllManagers
+    RestoreExcelNavigation
     Sheets(SHEET_TITLE).Activate
     
     Exit Sub
@@ -115,6 +126,7 @@ Private Sub UpdateLoop()
 ErrorHandler:
     MsgBox "Update Error: " & Err.Description, vbCritical
     Call DestroyAllManagers
+    RestoreExcelNavigation
     Sheets(SHEET_TITLE).Activate
 End Sub
 
@@ -209,45 +221,49 @@ End Function
 '###################################################################################
 
 Private Sub HandleTriggers()
+    ' Check and execute trigger codes from map cells
+    ' Format: S[Dir][Action][Pad][EnemyCode][Dir][Cell]
+    ' Example: S1XXXXETOC02DR484
     On Error Resume Next
     
-    ' Get current cell address
-    Dim currentCellAddress As String
-    currentCellAddress = GetCellAddress(m_SpriteManager.LinkSprite.topLeftCell)
-    If currentCellAddress = "" Then Exit Sub
-    
-    ' Store in state
-    m_GameState.LinkCellAddress = currentCellAddress
-    Sheets(SHEET_DATA).Range("C18").Value = currentCellAddress
-    
-    ' Get trigger cell value
-    Dim targetCell As Range
-    Set targetCell = Sheets(m_GameState.CurrentScreen).Range(currentCellAddress).Offset(3, 2)
-    
+    Dim mapSheet As Worksheet
+    Dim linkCell As Range
+    Dim triggerCell As Range
     Dim code As String
-    code = Trim(CStr(targetCell.Value))
-    If code = "" Then Exit Sub
+
+    Set mapSheet = Sheets(m_GameState.CurrentScreen)
+    Set linkCell = LinkSprite.TopLeftCell
+    If linkCell Is Nothing Then Exit Sub
+    Set triggerCell = mapSheet.Range(linkCell.Address).Offset(3, 2)
+
+    code = Trim$(CStr(triggerCell.Value))
+    If Len(code) < 8 Then Exit Sub
     
+    ' Update state
+    m_GameState.LinkCellAddress = LinkSprite.TopLeftCell.Address
     m_GameState.CodeCell = code
+    Sheets(SHEET_DATA).Range("C18").Value = m_GameState.LinkCellAddress
     
-    ' Parse trigger code
-    Dim scrollInd As String, scrollDir As String
-    Dim fallInd As String, actionInd As String
+    ' Parse: S1XXXXETOC02DR484
+    '        ││    ││      │└─ Cell (R484)
+    '        ││    ││      └─── Direction (D)
+    '        ││    │└────────── Enemy code (ETOC02) or padding (XXXXXX)
+    '        ││    └─────────── Action (ET/RL/SE/FL/PU)
+    '        │└──────────────── Scroll direction (1=Right,2=Left,3=Down,4=Up)
+    '        └───────────────── Scroll indicator (S=scroll, X=no scroll)
     
-    scrollInd = Left(code, 1)
-    scrollDir = Mid(code, 2, 1)
-    fallInd = Mid(code, 3, 2)
-    actionInd = Mid(code, 7, 2)
+    Dim scrollInd As String: scrollInd = VBA.Left$(code, 1)
+    Dim scrollDir As String: scrollDir = Mid$(code, 2, 1)
+    Dim actionInd As String: actionInd = Mid$(code, 3, 2)
     
-    ' Execute triggers
+    ' Execute scroll
     If scrollInd = "S" Then Call myScroll(scrollDir)
     
-    Select Case fallInd
+    ' Execute action
+    Select Case actionInd
         Case "FL": Call Falling
         Case "JD": Call JumpDown
-    End Select
-    
-    Select Case actionInd
+        Case "PU": ' Push - not implemented yet
         Case "RL": Call Relocate(code): Exit Sub
         Case "ET": Call EnemyTrigger(code)
         Case "SE": Call SpecialEventTrigger(code)
@@ -362,10 +378,11 @@ Sub Relocate(ByVal location As String)
     ' Update all sprite positions
     m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
     
-    ' Update sprite positions and game state
+    ' Update sprite positions
     m_SpriteManager.LinkSpriteLeft = targetCell.Left
     m_SpriteManager.LinkSpriteTop = targetCell.Top
-    m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.topLeftCell.Address
+    
+    ' Clear trigger state
     m_GameState.CodeCell = ""
     
     ' Screen alignment and setup
@@ -389,3 +406,20 @@ RelocateError:
     MsgBox "Error in Relocate: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Relocate Error"
 End Sub
 
+Private Sub DisableExcelNavigation()
+    Application.OnKey "{UP}", "HandleGameKey"
+    Application.OnKey "{DOWN}", "HandleGameKey"
+    Application.OnKey "{LEFT}", "HandleGameKey"
+    Application.OnKey "{RIGHT}", "HandleGameKey"
+End Sub
+
+Private Sub RestoreExcelNavigation()
+    Application.OnKey "{UP}"
+    Application.OnKey "{DOWN}"
+    Application.OnKey "{LEFT}"
+    Application.OnKey "{RIGHT}"
+End Sub
+
+Public Sub HandleGameKey()
+    ' Swallow default navigation - actual input handled via GetAsyncKeyState
+End Sub

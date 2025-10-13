@@ -12,57 +12,39 @@
 'called which describes how the screen is set up (enemies, NPCs, rocks, bushes etc).
 
 Sub AA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 Call resetBushes("All")
 
 End Sub
 
 Sub AB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 Call resetBushes("All")
 
 End Sub
 
 
 Sub AC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 Call resetBushes("All")
 
 End Sub
 
 Sub AD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub BA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 
 End Sub
 
 Sub BB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 
@@ -70,144 +52,96 @@ End Sub
 
 
 Sub BC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub BD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub CA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub CB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub CC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 Sub CD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub DA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub DB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub DC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub DD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub EA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub EB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub EC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub ED()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub FA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub FB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -217,118 +151,79 @@ Call EnemyTrigger("XXXXXXETRC01DDH183")
 End Sub
 
 Sub FC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub FD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub GA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub GB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub GC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub GD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub HA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub HB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub HC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub HD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub IA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub IB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub IC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -349,19 +244,13 @@ Application.ScreenUpdating = True
 End Sub
 
 Sub ID()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub JA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -370,28 +259,19 @@ Call positionObj("Bush1", "AS305", "B")
 End Sub
 
 Sub JB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub JC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub JD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -412,10 +292,7 @@ Application.ScreenUpdating = True
 End Sub
 
 Sub KA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -427,19 +304,13 @@ Call positionObj("Bush4", "BE343", "B")
 End Sub
 
 Sub KB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub KC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -449,10 +320,7 @@ Sub KD()
 
 'Bush screen
 
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -498,10 +366,7 @@ Application.ScreenUpdating = True
 End Sub
 
 Sub LA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 Call resetBushes("All")
 
 Call positionObj("Bush1", "BE379", "B")
@@ -510,19 +375,13 @@ Call positionObj("Bush2", "BE383", "B")
 End Sub
 
 Sub LB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub LC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -531,10 +390,7 @@ End Sub
 
 Sub LD()
 
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -562,19 +418,13 @@ Application.ScreenUpdating = True
 End Sub
 
 Sub MA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub MB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 Call resetBushes("All")
 
 Call positionObj("Bush1", "DA403", "B")
@@ -589,29 +439,20 @@ Call EnemyTrigger("S1XXXXETOC02DDA399")
 End Sub
 
 Sub MC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub MD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub NA()
 
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call EnemyTrigger("S1XXXXETOC01DV432")
 
@@ -619,10 +460,7 @@ Call EnemyTrigger("S1XXXXETOC01DV432")
 End Sub
 
 Sub NB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 Call resetBushes("All")
 
 Call positionObj("Bush1", "CC451", "B")
@@ -634,28 +472,19 @@ Call positionObj("Bush5", "DM447", "B")
 End Sub
 
 Sub NC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 End Sub
 
 Sub ND()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub OA()
 
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -670,10 +499,7 @@ Call EnemyTrigger("S1XXXXETOC02DR481")
 End Sub
 
 Sub OB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 Call positionObj("Bush1", "BW483", "B")
@@ -689,28 +515,19 @@ Call EnemyTrigger("S1XXXXETGD03Dcc467")
 End Sub
 
 Sub OC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub OD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub PA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call EnemyTrigger("S1XXXXETSC01DAK499")
 Call EnemyTrigger("S1XXXXETSC02DBD507")
@@ -719,10 +536,7 @@ Call EnemyTrigger("S1XXXXETSC02DBD507")
 End Sub
 
 Sub PB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call EnemyTrigger("S1XXXXETSC01DDA493")
 Call EnemyTrigger("S1XXXXETSC02DCN506")
@@ -730,10 +544,7 @@ Call EnemyTrigger("S1XXXXETSC02DCN506")
 End Sub
 
 Sub PC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -750,28 +561,19 @@ End If
 End Sub
 
 Sub PD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub SA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub SB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -790,28 +592,19 @@ Call EnemyTrigger("XXXXXXETMA01DCU595")
 End Sub
 
 Sub SC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub SD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub TA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 Call resetBushes("All")
 
@@ -822,99 +615,66 @@ End If
 End Sub
 
 Sub TB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub TC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 End Sub
 
 Sub TD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub UA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub UB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub UC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub UD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub VA()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub VB()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub VC()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub
 
 Sub VD()
-Call resetEnemy1
-Call resetEnemy2
-Call resetEnemy3
-Call resetEnemy4
+Call ResetAllEnemies
 
 
 End Sub

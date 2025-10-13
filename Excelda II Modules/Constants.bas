@@ -8,6 +8,7 @@ Public mySub As String
 ' Game constants
 Public Const GAME_VERSION As String = "2.0.0"
 Public Const TICK_RATE As Long = 60
+Public Const DEFAULT_GAME_SPEED As Long = 100
 
 ' Direction enums
 Public Enum Direction
