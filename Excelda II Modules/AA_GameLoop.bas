@@ -14,6 +14,11 @@ Private m_GameState As GameState
 Private m_SpriteManager As SpriteManager
 Private m_ActionManager As ActionManager
 Private m_EnemyManager As EnemyManager
+Private m_PreviousScreenUpdating As Boolean
+Private m_PreviousEnableEvents As Boolean
+Private m_PreviousDisplayStatusBar As Boolean
+Private m_PreviousCalculation As XlCalculation
+Private m_InGameMode As Boolean
 
 '###################################################################################
 '                              Main Game Loop
@@ -31,6 +36,8 @@ Public Sub Start()
     Exit Sub
     
 ErrorHandler:
+    Call ExitGameMode
+    RestoreExcelNavigation
     MsgBox "Game Error: " & Err.Description, vbCritical
     Sheets(SHEET_TITLE).Activate
 End Sub
@@ -51,12 +58,17 @@ Private Sub StartGame()
     ' Setup starting state
     Dim screen As String
     screen = ActiveSheet.Name
+    If screen = SHEET_TITLE Then screen = SHEET_GAME
+    Sheets(screen).Activate
 
+    EnterGameMode
     DisableExcelNavigation
+    Application.ScreenUpdating = True
     
     Dim direction As String
     direction = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
     If direction = "" Then direction = "D"
+    Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = direction
     
     ' Find Link sprite
     Dim spriteName As String
@@ -66,11 +78,12 @@ Private Sub StartGame()
     ' Initialize sprite manager
     m_SpriteManager.Initialize screen, spriteName
     m_SpriteManager.UpdateVisibility
+    m_ActionManager.Initialize screen
     
     ' Set game state
+    m_GameState.RefreshFromDataSheet
     m_GameState.CurrentScreen = screen
     m_GameState.MoveDir = direction
-    m_GameState.GameSpeed = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
     
     ' Sync legacy globals
     Set LinkSprite = m_SpriteManager.LinkSprite
@@ -84,11 +97,13 @@ Private Sub StartGame()
     Call calculateScreenLocation("", direction)
     If CurrentScreen <> "" Then Application.Run CurrentScreen
     On Error GoTo ErrorHandler
+    Application.ScreenUpdating = False
     
     Exit Sub
     
 ErrorHandler:
     RestoreExcelNavigation
+    Call ExitGameMode
     MsgBox "Start Error: " & Err.Description, vbCritical
     Sheets(SHEET_TITLE).Activate
 End Sub
@@ -100,10 +115,14 @@ Private Sub UpdateLoop()
     
     Do
         ' Quit check
-        If GetAsyncKeyState(KEY_Q) <> 0 Then Exit Do
+        If IsQuitRequested() Then Exit Do
         
         ' Update game state
+        m_GameState.RefreshFromDataSheet
         Call Update
+        Application.ScreenUpdating = True
+        DoEvents
+        If IsQuitRequested() Then Exit Do
         
         ' Sleep for frame timing
         frameDelay = m_GameState.GameSpeed
@@ -112,12 +131,17 @@ Private Sub UpdateLoop()
             If frameDelay <= 0 Then frameDelay = DEFAULT_GAME_SPEED
             m_GameState.GameSpeed = frameDelay
         End If
-    Sleep frameDelay
-    DoEvents
+        Sleep frameDelay
+        If IsQuitRequested() Then Exit Do
+        DoEvents
+        If IsQuitRequested() Then Exit Do
+        Application.CutCopyMode = False
+        Application.ScreenUpdating = False
     Loop
     
     ' Cleanup
     Call DestroyAllManagers
+    Call ExitGameMode
     RestoreExcelNavigation
     Sheets(SHEET_TITLE).Activate
     
@@ -126,6 +150,7 @@ Private Sub UpdateLoop()
 ErrorHandler:
     MsgBox "Update Error: " & Err.Description, vbCritical
     Call DestroyAllManagers
+    Call ExitGameMode
     RestoreExcelNavigation
     Sheets(SHEET_TITLE).Activate
 End Sub
@@ -150,6 +175,7 @@ Private Sub Update()
     ' Handle input and update
     Call HandleInput
     Call HandleTriggers
+    Call HandleEnemies
     Call UpdateSprites
 End Sub
 
@@ -157,6 +183,10 @@ Private Sub HandleInput()
     ' Process player input
     Dim newDir As String
     newDir = ""
+    Dim currentCell As Range
+    On Error Resume Next
+    Set currentCell = LinkSprite.TopLeftCell
+    On Error GoTo 0
     
     ' Check movement keys
     If GetAsyncKeyState(KEY_UP) <> 0 Then newDir = newDir & "U"
@@ -164,35 +194,89 @@ Private Sub HandleInput()
     If GetAsyncKeyState(KEY_LEFT) <> 0 Then newDir = newDir & "L"
     If GetAsyncKeyState(KEY_RIGHT) <> 0 Then newDir = newDir & "R"
     
+    ' Block movement if collision detected
+    If newDir <> "" And Not currentCell Is Nothing Then
+        If DirectionBlocked(newDir, currentCell) Then newDir = ""
+    End If
+    
     ' Update direction
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = newDir
     m_GameState.MoveDir = newDir
     
     ' Process actions
-    m_ActionManager.ProcessAction KEY_C, m_ActionManager.CItem, m_ActionManager.CPress
-    m_ActionManager.ProcessAction KEY_D, m_ActionManager.DItem, m_ActionManager.DPress
+    m_ActionManager.ProcessAction KEY_C
+    m_ActionManager.ProcessAction KEY_D
 End Sub
 
 Private Sub UpdateSprites()
     ' Update sprite frames and positions
-    m_SpriteManager.UpdateFrame m_GameState.MoveDir, m_GameState.MoveSpeed
+    Dim movementDir As String
+    movementDir = m_GameState.MoveDir
+    Dim facingDir As String
+    If movementDir = "" Then
+        facingDir = m_GameState.LastDir
+    Else
+        facingDir = movementDir
+    End If
+    m_SpriteManager.UpdateFrame movementDir, facingDir, m_GameState.MoveSpeed
     m_SpriteManager.UpdatePosition
+    m_SpriteManager.UpdateVisibility
+    On Error Resume Next
+    Dim linkCell As Range
+    Set linkCell = m_SpriteManager.LinkSprite.TopLeftCell
+    If Not linkCell Is Nothing Then
+        m_GameState.LinkCellAddress = linkCell.Address
+        Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = m_GameState.LinkCellAddress
+    End If
+    On Error GoTo 0
+    Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = ""
     
     ' Sync legacy global
     Set LinkSprite = m_SpriteManager.LinkSprite
 End Sub
 
+Private Function DirectionBlocked(ByVal direction As String, ByVal baseCell As Range) As Boolean
+    On Error Resume Next
+    If baseCell Is Nothing Then Exit Function
+    Dim blocked As Boolean
+    
+    If InStr(direction, "D") > 0 Then
+        blocked = blocked Or (baseCell.Offset(4, 3).Value = "B")
+    End If
+    If InStr(direction, "U") > 0 Then
+        blocked = blocked Or (baseCell.Offset(0, 3).Value = "B")
+    End If
+    If InStr(direction, "L") > 0 Then
+        blocked = blocked Or (baseCell.Offset(4, 0).Value = "B")
+    End If
+    If InStr(direction, "R") > 0 Then
+        blocked = blocked Or (baseCell.Offset(1, 2).Value = "B") Or _
+                             (baseCell.Offset(4, 4).Value = "B")
+    End If
+    If InStr(direction, "R") > 0 And InStr(direction, "U") > 0 Then
+        blocked = blocked Or (baseCell.Offset(0, 3).Value = "B")
+    End If
+    If InStr(direction, "L") > 0 And InStr(direction, "U") > 0 Then
+        blocked = blocked Or (baseCell.Value = "B")
+    End If
+    If InStr(direction, "R") > 0 And InStr(direction, "D") > 0 Then
+        blocked = blocked Or (baseCell.Offset(4, 3).Value = "B")
+    End If
+    If InStr(direction, "L") > 0 And InStr(direction, "D") > 0 Then
+        blocked = blocked Or (baseCell.Offset(4, 0).Value = "B")
+    End If
+    DirectionBlocked = blocked
+    On Error GoTo 0
+End Function
+
 '###################################################################################
 '                              Helper Functions
 '###################################################################################
 
-Private Function GetCellAddress(ByVal rng As Range) As String
-    ' Get cell address from range (handles multi-cell ranges)
-    If rng.Cells.Count > 1 Then
-        GetCellAddress = rng.Cells(1, 1).Address
-    Else
-        GetCellAddress = rng.Address
-    End If
+Private Function IsQuitRequested() As Boolean
+    Dim keyState As Long
+    keyState = GetAsyncKeyState(KEY_Q)
+    IsQuitRequested = ((keyState And &H8000&) <> 0)
 End Function
 
 Private Function FindLinkSprite(ByVal sheetName As String) As String
@@ -257,7 +341,11 @@ Private Sub HandleTriggers()
     Dim actionInd As String: actionInd = Mid$(code, 3, 2)
     
     ' Execute scroll
-    If scrollInd = "S" Then Call myScroll(scrollDir)
+    If scrollInd = "S" Then
+        Call myScroll(scrollDir)
+        m_ActionManager.Initialize m_GameState.CurrentScreen
+        m_SpriteManager.UpdateVisibility
+    End If
     
     ' Execute action
     Select Case actionInd
@@ -322,84 +410,51 @@ End Function
 '                              Sprite Visibility Management
 '###################################################################################
 
-Private Sub UpdateSpriteVisibility()
-    ' Update sprite visibility through SpriteManager
-    m_SpriteManager.UpdateVisibility
-    
-    ' Update animation counter
-    UpdateAnimationCounter
-End Sub
-
-Private Sub UpdateAnimationCounter()
-    Dim currentCount As Long
-    currentCount = Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value
-    
-    If currentCount >= 10 Then
-        Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value = 0
-    Else
-        Sheets(SHEET_DATA).Range(RANGE_FRAME_COUNT).Value = currentCount + 1
-    End If
-End Sub
-
-Sub Relocate(ByVal location As String)
+Sub Relocate(ByVal code As String)
     On Error GoTo RelocateError
     
+    Dim scrollDir As String
+    Dim offsetDir As String
+    Dim targetAddress As String
+    Dim mapSheet As Worksheet
     Dim targetCell As Range
-    Dim cellAdd As String
+    Dim setupMacro As String
     
-    ' Determine target cell
-    If location = Sheets(SHEET_DATA).Range("C8").Value Then
-        Set targetCell = Range(location)
-        
-        ' Apply offset based on direction
-        Select Case Sheets(SHEET_DATA).Range("C9").Value
-            Case "U"
-                Set targetCell = targetCell.Offset(-1, 0)
-            Case "D"
-                Set targetCell = targetCell.Offset(1, 0)
-            Case "L"
-                Set targetCell = targetCell.Offset(0, -1)
-            Case "R"
-                Set targetCell = targetCell.Offset(0, 2)
-        End Select
-    Else
-        ' Find cell by searching for the last 4 characters
-        cellAdd = Right(location, 4)
-        Set targetCell = Cells.Find(What:=cellAdd, After:=ActiveCell, LookIn:=xlFormulas, _
-                                   LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, _
-                                   MatchCase:=True, SearchFormat:=False)
-        
-        If targetCell Is Nothing Then
-            MsgBox "Target cell not found: " & cellAdd, vbCritical, "Relocate Error"
-            Exit Sub
-        End If
-    End If
+    scrollDir = Mid$(code, 2, 1)
+    offsetDir = Mid$(code, 13, 1)
+    targetAddress = Mid$(code, 14)
+    If targetAddress = "" Then targetAddress = Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value
     
-    ' Update all sprite positions
+    Set mapSheet = Sheets(m_GameState.CurrentScreen)
+    Set targetCell = mapSheet.Range(targetAddress)
+    If targetCell Is Nothing Then Err.Raise vbObjectError + 101, "Relocate", "Target cell not found: " & targetAddress
+    
+    Select Case offsetDir
+        Case "U": Set targetCell = targetCell.Offset(-1, 0)
+        Case "D": Set targetCell = targetCell.Offset(1, 0)
+        Case "L": Set targetCell = targetCell.Offset(0, -1)
+        Case "R": Set targetCell = targetCell.Offset(0, 2)
+    End Select
+    
     m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
-    
-    ' Update sprite positions
     m_SpriteManager.LinkSpriteLeft = targetCell.Left
     m_SpriteManager.LinkSpriteTop = targetCell.Top
-    
-    ' Clear trigger state
+    m_GameState.LinkCellAddress = targetCell.Address
+    Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = m_GameState.LinkCellAddress
     m_GameState.CodeCell = ""
     
-    ' Screen alignment and setup
     Call alignScreen
-    Range("A1").Copy Range("A2")
-    Call calculateScreenLocation("1", "D")
+    Call calculateScreenLocation(scrollDir, offsetDir)
+    m_ActionManager.Initialize m_GameState.CurrentScreen
+    m_SpriteManager.UpdateVisibility
     
-    ' Run screen setup macro
     On Error GoTo ScreenSetupError
-    Dim mySub As String
-    mySub = m_GameState.CurrentScreen
-    Application.Run mySub
-    
+    setupMacro = m_GameState.CurrentScreen
+    If setupMacro <> "" Then Application.Run setupMacro
     Exit Sub
     
 ScreenSetupError:
-    MsgBox "Screen setup macro not found: " & mySub, vbCritical, "Screen Setup Error"
+    MsgBox "Screen setup macro not found: " & setupMacro, vbCritical, "Screen Setup Error"
     Exit Sub
     
 RelocateError:
@@ -407,10 +462,16 @@ RelocateError:
 End Sub
 
 Private Sub DisableExcelNavigation()
-    Application.OnKey "{UP}", "HandleGameKey"
-    Application.OnKey "{DOWN}", "HandleGameKey"
-    Application.OnKey "{LEFT}", "HandleGameKey"
-    Application.OnKey "{RIGHT}", "HandleGameKey"
+    Application.OnKey "{UP}", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "{DOWN}", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "{LEFT}", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "{RIGHT}", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "q", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "Q", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "c", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "C", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "d", "AA_GameLoop.HandleGameKey"
+    Application.OnKey "D", "AA_GameLoop.HandleGameKey"
 End Sub
 
 Private Sub RestoreExcelNavigation()
@@ -418,8 +479,38 @@ Private Sub RestoreExcelNavigation()
     Application.OnKey "{DOWN}"
     Application.OnKey "{LEFT}"
     Application.OnKey "{RIGHT}"
+    Application.OnKey "q"
+    Application.OnKey "Q"
+    Application.OnKey "c"
+    Application.OnKey "C"
+    Application.OnKey "d"
+    Application.OnKey "D"
 End Sub
 
 Public Sub HandleGameKey()
     ' Swallow default navigation - actual input handled via GetAsyncKeyState
+End Sub
+
+Private Sub EnterGameMode()
+    If m_InGameMode Then Exit Sub
+    m_PreviousScreenUpdating = Application.ScreenUpdating
+    m_PreviousDisplayStatusBar = Application.DisplayStatusBar
+    m_PreviousCalculation = Application.Calculation
+    m_PreviousEnableEvents = Application.EnableEvents
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.DisplayStatusBar = False
+    Application.Calculation = xlCalculationManual
+    m_InGameMode = True
+End Sub
+
+Private Sub ExitGameMode()
+    On Error Resume Next
+    If Not m_InGameMode Then Exit Sub
+    Application.ScreenUpdating = m_PreviousScreenUpdating
+    Application.EnableEvents = m_PreviousEnableEvents
+    Application.DisplayStatusBar = m_PreviousDisplayStatusBar
+    Application.Calculation = m_PreviousCalculation
+    m_InGameMode = False
+    On Error GoTo 0
 End Sub

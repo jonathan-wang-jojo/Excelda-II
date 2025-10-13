@@ -26,7 +26,7 @@ Private Sub Class_Initialize()
     On Error Resume Next
     With m_Game
         .GameSpeed = ReadGameSpeed()
-        .MoveSpeed = Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value
+        .MoveSpeed = ReadMoveSpeed()
         .IsPaused = False
         .MoveDir = ""
         .LastDir = "D"
@@ -43,6 +43,7 @@ End Sub
 ' Core lifecycle
 Public Sub Reset()
     m_Game.GameSpeed = ReadGameSpeed()
+    m_Game.MoveSpeed = ReadMoveSpeed()
     m_Game.MoveDir = ""
     m_Game.IsFalling = False
     m_Game.RNDBounceback = ""
@@ -68,8 +69,10 @@ Public Property Get GameSpeed() As Long
 End Property
 
 Public Property Let GameSpeed(ByVal Value As Long)
-    If Value <= 0 Then
+    If Value < MIN_GAME_SPEED Then
         m_Game.GameSpeed = DEFAULT_GAME_SPEED
+    ElseIf Value > MAX_GAME_SPEED Then
+        m_Game.GameSpeed = MAX_GAME_SPEED
     Else
         m_Game.GameSpeed = Value
     End If
@@ -98,6 +101,16 @@ End Property
 
 Public Property Get MoveSpeed() As Long
     MoveSpeed = m_Game.MoveSpeed
+End Property
+
+Public Property Let MoveSpeed(ByVal Value As Long)
+    If Value < MIN_LINK_SPEED Then
+        m_Game.MoveSpeed = DEFAULT_LINK_SPEED
+    ElseIf Value > MAX_LINK_SPEED Then
+        m_Game.MoveSpeed = MAX_LINK_SPEED
+    Else
+        m_Game.MoveSpeed = Value
+    End If
 End Property
 
 Public Property Get IsFalling() As Boolean
@@ -148,11 +161,27 @@ Public Property Let ScreenSetUpTimer(ByVal Value As Long)
     m_Game.ScreenSetUpTimer = Value
 End Property
 
+Public Sub RefreshFromDataSheet()
+    m_Game.GameSpeed = ReadGameSpeed()
+    m_Game.MoveSpeed = ReadMoveSpeed()
+End Sub
+
 Private Function ReadGameSpeed() As Long
     On Error Resume Next
     Dim value As Long
     value = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
-    If value <= 0 Then value = DEFAULT_GAME_SPEED
+    If value < MIN_GAME_SPEED Then value = DEFAULT_GAME_SPEED
+    If value > MAX_GAME_SPEED Then value = MAX_GAME_SPEED
     ReadGameSpeed = value
+    On Error GoTo 0
+End Function
+
+Private Function ReadMoveSpeed() As Long
+    On Error Resume Next
+    Dim value As Long
+    value = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value))
+    If value < MIN_LINK_SPEED Then value = DEFAULT_LINK_SPEED
+    If value > MAX_LINK_SPEED Then value = MAX_LINK_SPEED
+    ReadMoveSpeed = value
     On Error GoTo 0
 End Function

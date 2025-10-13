@@ -8,7 +8,12 @@ Public mySub As String
 ' Game constants
 Public Const GAME_VERSION As String = "2.0.0"
 Public Const TICK_RATE As Long = 60
-Public Const DEFAULT_GAME_SPEED As Long = 100
+Public Const DEFAULT_GAME_SPEED As Long = 30
+Public Const MIN_GAME_SPEED As Long = 15
+Public Const MAX_GAME_SPEED As Long = 200
+Public Const DEFAULT_LINK_SPEED As Long = 6
+Public Const MIN_LINK_SPEED As Long = 2
+Public Const MAX_LINK_SPEED As Long = 20
 
 ' Direction enums
 Public Enum Direction
@@ -53,10 +58,10 @@ Public Const KEY_Q As Integer = 81
 Public Const RANGE_MOVE_DIR As String = "C21"
 Public Const RANGE_GAME_SPEED As String = "C4"
 Public Const RANGE_LINK_MOVE As String = "C19"
+Public Const RANGE_ANIM_COUNTER As String = "C20"
 Public Const RANGE_C_ITEM As String = "C26"
 Public Const RANGE_D_ITEM As String = "C27"
 Public Const RANGE_FALLING As String = "C9"
-Public Const RANGE_FRAME_COUNT As String = "C20"
 Public Const RANGE_ACTION_C As String = "C24"
 Public Const RANGE_ACTION_D As String = "C25"
 Public Const RANGE_SHIELD_STATE As String = "C28"
