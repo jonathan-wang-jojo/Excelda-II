@@ -11,11 +11,15 @@ End Type
 Private m_Friendlies(1 To 4) As FriendlySlot
 
 Private Sub Class_Initialize()
-    InitializeState
+    Initialize
+End Sub
+
+Private Sub Class_Terminate()
+    Destroy
 End Sub
 
 Public Sub Initialize()
-    InitializeState
+    ResetState
 End Sub
 
 Public Sub Reset()
@@ -27,14 +31,14 @@ Public Sub Reset()
             ClearFriendly i
         End If
     Next i
+    ResetState
 End Sub
 
 Public Sub Destroy()
     Reset
-    InitializeState
 End Sub
 
-Private Sub InitializeState()
+Private Sub ResetState()
     Dim i As Long
     For i = 1 To 4
         ClearFriendly i

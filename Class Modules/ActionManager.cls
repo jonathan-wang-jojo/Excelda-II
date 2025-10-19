@@ -22,30 +22,33 @@ Private m_Action As ActionData
 
 ' Initialization
 Private Sub Class_Initialize()
-    InitializeState
+    Initialize
 End Sub
 
-Private Sub InitializeState()
+Private Sub Class_Terminate()
+    Destroy
+End Sub
+
+' Core lifecycle
+Public Sub Reset()
+    ResetState
+End Sub
+
+Public Sub Destroy()
+    ResetState
+End Sub
+
+Public Sub Initialize(Optional ByVal screenName As String = "")
+    ResetState
+End Sub
+
+Private Sub ResetState()
     m_Action.CItem = ""
     m_Action.DItem = ""
     m_Action.CPress = 0
     m_Action.DPress = 0
     LoadItemsFromSheet
 End Sub
-
-' Core lifecycle
-Public Sub Reset()
-    InitializeState
-End Sub
-
-Public Sub Destroy()
-    InitializeState
-End Sub
-
-Public Sub Initialize(Optional ByVal screenName As String = "")
-    InitializeState
-End Sub
-
 ' Simple accessors
 Public Property Get CItem() As String
     CItem = m_Action.CItem

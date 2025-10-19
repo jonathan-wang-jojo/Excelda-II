@@ -17,8 +17,20 @@ Private Sub Class_Initialize()
     Initialize
 End Sub
 
+Private Sub Class_Terminate()
+    Destroy
+End Sub
+
 Public Sub Initialize()
     ' Object manager currently has no stateful initialization requirements.
+End Sub
+
+Public Sub Reset()
+    ' Object manager currently has no persistent state to reset.
+End Sub
+
+Public Sub Destroy()
+    ' Object manager currently has no resources to release.
 End Sub
 
 Public Sub HandleSwordHit(ByVal swordShape As Shape, Optional ByVal objectPrefix As String = "Bush", Optional ByVal objectCount As Long = MAX_OBJECT_SLOTS)

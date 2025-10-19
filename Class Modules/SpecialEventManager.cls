@@ -16,8 +16,20 @@ Private Sub Class_Initialize()
     Initialize
 End Sub
 
+Private Sub Class_Terminate()
+    Destroy
+End Sub
+
 Public Sub Initialize()
     ' No persistent state to seed yet; defined for lifecycle consistency.
+End Sub
+
+Public Sub Reset()
+    ' No persistent state to reset.
+End Sub
+
+Public Sub Destroy()
+    ' No persistent state to release.
 End Sub
 
 Public Sub Trigger(ByVal eventCode As String)

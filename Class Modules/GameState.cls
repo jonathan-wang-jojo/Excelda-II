@@ -28,6 +28,10 @@ Private Sub Class_Initialize()
     Initialize
 End Sub
 
+Private Sub Class_Terminate()
+    Destroy
+End Sub
+
 ' Core lifecycle
 Public Sub Reset()
     m_Game.GameSpeed = ReadGameSpeed()

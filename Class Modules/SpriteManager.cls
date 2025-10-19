@@ -18,10 +18,14 @@ Private m_Sprite As SpriteData
 
 ' Initialization
 Private Sub Class_Initialize()
-    InitializeState
+    Initialize
 End Sub
 
-Private Sub InitializeState()
+Private Sub Class_Terminate()
+    Destroy
+End Sub
+
+Private Sub ResetState()
     Set m_Sprite.LinkSprite = Nothing
     m_Sprite.Top = 0
     m_Sprite.Left = 0
@@ -30,7 +34,7 @@ Private Sub InitializeState()
 End Sub
 
 Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal spriteName As String = "")
-    InitializeState
+    ResetState
     If screenName = "" Or spriteName = "" Then Exit Sub
 
     On Error GoTo ErrorHandler
@@ -66,7 +70,7 @@ End Sub
 ' Core lifecycle
 Public Sub Reset()
     On Error Resume Next
-    InitializeState
+    ResetState
     
     Dim gs As GameState
     Set gs = GameStateInstance
@@ -87,11 +91,7 @@ Public Sub Reset()
 End Sub
 
 Public Sub Destroy()
-    Set m_Sprite.LinkSprite = Nothing
-    m_Sprite.Top = 0
-    m_Sprite.Left = 0
-    m_Sprite.Frame = 0
-    m_Sprite.FrameCounter = 0
+    ResetState
 End Sub
 
 
@@ -157,8 +157,9 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     If ws Is Nothing Then Exit Sub
     Dim shapeName As String
     shapeName = "Link" & baseDir & m_Sprite.Frame
-    Set m_Sprite.LinkSprite = ws.Shapes(shapeName)
+    Set m_Sprite.LinkSprite = ShapeIfExists(ws, shapeName)
     If m_Sprite.LinkSprite Is Nothing Then Exit Sub
+    ApplyLinkVisibility ws
     
     ' Sync global for legacy code compatibility
     Set LinkSprite = m_Sprite.LinkSprite
@@ -231,17 +232,21 @@ End Sub
 
 Public Sub UpdateVisibility()
     On Error Resume Next
-    
-    Dim wsGame As Worksheet: Set wsGame = Sheets(GameStateInstance.CurrentScreen)
-    Dim s As Variant
-    
-    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
-                        "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
-        wsGame.Shapes(s).Visible = False
-    Next s
-    
-    m_Sprite.LinkSprite.Visible = True
-    
+    Dim gs As GameState
+    Set gs = GameStateInstance
+    Dim wsGame As Worksheet
+    If Not gs Is Nothing Then
+        If gs.CurrentScreen <> "" Then
+            Set wsGame = Sheets(gs.CurrentScreen)
+        End If
+    End If
+    If wsGame Is Nothing And Not m_Sprite.LinkSprite Is Nothing Then
+        Set wsGame = m_Sprite.LinkSprite.Parent
+    End If
+    If wsGame Is Nothing Then Exit Sub
+
+    ApplyLinkVisibility wsGame
+
     On Error GoTo 0
 End Sub
 
@@ -294,14 +299,28 @@ Public Sub AlignSprites(ByVal leftPos As Double, ByVal topPos As Double)
     m_Sprite.Left = leftPos
     m_Sprite.Top = topPos
     
-    Dim wsGame As Worksheet: Set wsGame = Sheets(GameStateInstance.CurrentScreen)
-    Dim s As Variant
+    Dim gs As GameState
+    Set gs = GameStateInstance
+    Dim wsGame As Worksheet
+    If Not gs Is Nothing Then
+        If gs.CurrentScreen <> "" Then
+            Set wsGame = Sheets(gs.CurrentScreen)
+        End If
+    End If
+    If wsGame Is Nothing And Not m_Sprite.LinkSprite Is Nothing Then
+        Set wsGame = m_Sprite.LinkSprite.Parent
+    End If
+    If wsGame Is Nothing Then Exit Sub
     
-    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
-                        "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
-        wsGame.Shapes(s).Left = leftPos
-        wsGame.Shapes(s).Top = topPos
-    Next s
+    Dim frameName As Variant
+    For Each frameName In LinkFrameNames()
+        Dim frameShape As Shape
+        Set frameShape = ShapeIfExists(wsGame, CStr(frameName))
+        If Not frameShape Is Nothing Then
+            frameShape.Left = leftPos
+            frameShape.Top = topPos
+        End If
+    Next frameName
     
     On Error GoTo 0
 End Sub
@@ -323,13 +342,53 @@ End Function
 Private Sub SyncAllLinkFrames()
     Dim wsGame As Worksheet
     On Error Resume Next
-    Set wsGame = Sheets(GameStateInstance.CurrentScreen)
+    Dim gs As GameState
+    Set gs = GameStateInstance
+    If Not gs Is Nothing Then
+        If gs.CurrentScreen <> "" Then
+            Set wsGame = Sheets(gs.CurrentScreen)
+        End If
+    End If
+    If wsGame Is Nothing And Not m_Sprite.LinkSprite Is Nothing Then
+        Set wsGame = m_Sprite.LinkSprite.Parent
+    End If
     If wsGame Is Nothing Then Exit Sub
-    Dim s As Variant
-    For Each s In Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
-                        "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
-        wsGame.Shapes(s).Top = m_Sprite.Top
-        wsGame.Shapes(s).Left = m_Sprite.Left
-    Next s
+    Dim frameName As Variant
+    For Each frameName In LinkFrameNames()
+        Dim frameShape As Shape
+        Set frameShape = ShapeIfExists(wsGame, CStr(frameName))
+        If Not frameShape Is Nothing Then
+            frameShape.Top = m_Sprite.Top
+            frameShape.Left = m_Sprite.Left
+        End If
+    Next frameName
     On Error GoTo 0
+End Sub
+
+Private Function LinkFrameNames() As Variant
+    LinkFrameNames = Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
+                           "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+End Function
+
+Private Function ShapeIfExists(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
+    On Error Resume Next
+    Set ShapeIfExists = ws.Shapes(shapeName)
+    If Err.Number <> 0 Then
+        Err.Clear
+        Set ShapeIfExists = Nothing
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub ApplyLinkVisibility(ByVal ws As Worksheet)
+    Dim frameName As Variant
+    For Each frameName In LinkFrameNames()
+        Dim frameShape As Shape
+        Set frameShape = ShapeIfExists(ws, CStr(frameName))
+        If Not frameShape Is Nothing Then
+            Dim shouldShow As Boolean
+            shouldShow = Not m_Sprite.LinkSprite Is Nothing And frameShape.Name = m_Sprite.LinkSprite.Name
+            frameShape.Visible = shouldShow
+        End If
+    Next frameName
 End Sub

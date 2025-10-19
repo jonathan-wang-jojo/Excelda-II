@@ -88,9 +88,12 @@ Public Sub ResetAllManagers()
     If Not m_EnemyManager Is Nothing Then m_EnemyManager.Reset
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Reset
     If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Reset
-    If Not m_ObjectManager Is Nothing Then m_ObjectManager.ResetObjects("All")
+    If Not m_ObjectManager Is Nothing Then
+        m_ObjectManager.Reset
+        m_ObjectManager.ResetObjects "All"
+    End If
     If Not m_SpecialEventManager Is Nothing Then
-        ' Special events currently have no resettable state
+        m_SpecialEventManager.Reset
     End If
 End Sub
 
@@ -100,7 +103,7 @@ Public Sub DestroyAllManagers()
     If Not m_EnemyManager Is Nothing Then m_EnemyManager.Destroy: Set m_EnemyManager = Nothing
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Destroy: Set m_SpriteManager = Nothing
     If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Destroy: Set m_FriendlyManager = Nothing
-    If Not m_ObjectManager Is Nothing Then Set m_ObjectManager = Nothing
-    If Not m_SpecialEventManager Is Nothing Then Set m_SpecialEventManager = Nothing
+    If Not m_ObjectManager Is Nothing Then m_ObjectManager.Destroy: Set m_ObjectManager = Nothing
+    If Not m_SpecialEventManager Is Nothing Then m_SpecialEventManager.Destroy: Set m_SpecialEventManager = Nothing
 End Sub
 '===================================================================================
