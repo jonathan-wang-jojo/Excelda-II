@@ -13,6 +13,14 @@ Private Const MAX_OBJECT_SLOTS As Long = 30
 '#                              OBJECT MANAGEMENT                                 #
 '###################################################################################
 
+Private Sub Class_Initialize()
+    Initialize
+End Sub
+
+Public Sub Initialize()
+    ' Object manager currently has no stateful initialization requirements.
+End Sub
+
 Public Sub HandleSwordHit(ByVal swordShape As Shape, Optional ByVal objectPrefix As String = "Bush", Optional ByVal objectCount As Long = MAX_OBJECT_SLOTS)
     Dim ws As Worksheet
     Set ws = CurrentScreenSheet()

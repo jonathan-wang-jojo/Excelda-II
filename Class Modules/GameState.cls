@@ -14,41 +14,40 @@ Private Type GameData
     IsFalling As Boolean
     LinkCellAddress As String
     CodeCell As String
-    RNDBounceback As String
-    CollidedWith As String
+    RNDBounceback As Long
     ScreenSetUpTimer As Long
+    TriggerCellAddress As String
+    LastFrameTimestamp As Double
+    FrameDeltaSeconds As Double
 End Type
 
 Private m_Game As GameData
 
 ' Initialization
 Private Sub Class_Initialize()
-    On Error Resume Next
-    With m_Game
-        .GameSpeed = ReadGameSpeed()
-        .MoveSpeed = ReadMoveSpeed()
-        .IsPaused = False
-        .MoveDir = ""
-        .LastDir = "D"
-        .IsFalling = False
-        .LinkCellAddress = ""
-        .CodeCell = ""
-        .RNDBounceback = ""
-        .CollidedWith = ""
-        .ScreenSetUpTimer = 0
-    End With
-    On Error GoTo 0
+    Initialize
 End Sub
 
 ' Core lifecycle
 Public Sub Reset()
     m_Game.GameSpeed = ReadGameSpeed()
     m_Game.MoveSpeed = ReadMoveSpeed()
+    m_Game.IsPaused = False
     m_Game.MoveDir = ""
+    m_Game.LastDir = "D"
     m_Game.IsFalling = False
-    m_Game.RNDBounceback = ""
-    m_Game.CollidedWith = ""
+    m_Game.LinkCellAddress = ""
+    m_Game.CodeCell = ""
+    m_Game.RNDBounceback = 0
     m_Game.ScreenSetUpTimer = 0
+    m_Game.TriggerCellAddress = ""
+    m_Game.CurrentScreen = ""
+    m_Game.FrameDeltaSeconds = DEFAULT_FRAME_SECONDS
+    m_Game.LastFrameTimestamp = Timer
+End Sub
+
+Public Sub Initialize()
+    Reset
 End Sub
 
 Public Sub Destroy()
@@ -137,20 +136,12 @@ Public Property Let CodeCell(ByVal Value As String)
     m_Game.CodeCell = Value
 End Property
 
-Public Property Get RNDBounceback() As String
+Public Property Get RNDBounceback() As Long
     RNDBounceback = m_Game.RNDBounceback
 End Property
 
-Public Property Let RNDBounceback(ByVal Value As String)
+Public Property Let RNDBounceback(ByVal Value As Long)
     m_Game.RNDBounceback = Value
-End Property
-
-Public Property Get CollidedWith() As String
-    CollidedWith = m_Game.CollidedWith
-End Property
-
-Public Property Let CollidedWith(ByVal Value As String)
-    m_Game.CollidedWith = Value
 End Property
 
 Public Property Get ScreenSetUpTimer() As Long
@@ -159,6 +150,46 @@ End Property
 
 Public Property Let ScreenSetUpTimer(ByVal Value As Long)
     m_Game.ScreenSetUpTimer = Value
+End Property
+
+Public Property Get TriggerCellAddress() As String
+    TriggerCellAddress = m_Game.TriggerCellAddress
+End Property
+
+Public Property Let TriggerCellAddress(ByVal Value As String)
+    m_Game.TriggerCellAddress = Value
+End Property
+
+Public Function BeginFrame() As Double
+    Dim now As Double
+    now = Timer
+    If m_Game.LastFrameTimestamp = 0# Then
+        m_Game.FrameDeltaSeconds = DEFAULT_FRAME_SECONDS
+    Else
+        m_Game.FrameDeltaSeconds = now - m_Game.LastFrameTimestamp
+        If m_Game.FrameDeltaSeconds < 0# Then
+            m_Game.FrameDeltaSeconds = m_Game.FrameDeltaSeconds + 86400#
+        End If
+        If m_Game.FrameDeltaSeconds < MIN_FRAME_DELTA_SECONDS Then
+            m_Game.FrameDeltaSeconds = MIN_FRAME_DELTA_SECONDS
+        ElseIf m_Game.FrameDeltaSeconds > MAX_FRAME_DELTA_SECONDS Then
+            m_Game.FrameDeltaSeconds = MAX_FRAME_DELTA_SECONDS
+        End If
+    End If
+    m_Game.LastFrameTimestamp = now
+    BeginFrame = m_Game.FrameDeltaSeconds
+End Function
+
+Public Property Get FrameDeltaSeconds() As Double
+    FrameDeltaSeconds = m_Game.FrameDeltaSeconds
+End Property
+
+Public Property Get ExpectedFrameSeconds() As Double
+    If m_Game.GameSpeed <= 0 Then
+        ExpectedFrameSeconds = DEFAULT_FRAME_SECONDS
+    Else
+        ExpectedFrameSeconds = CDbl(m_Game.GameSpeed) / 1000#
+    End If
 End Property
 
 Public Sub RefreshFromDataSheet()

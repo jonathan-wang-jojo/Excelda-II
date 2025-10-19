@@ -1,821 +1,608 @@
 'Attribute VB_Name = "AG_LinkActions"
-'##
-'
-'
-'
-'##
-Sub Falling()
+Option Explicit
 
-Sheets("Data").Range("C10").Value = "Y"
-    
-Dim location
+Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
-location = Mid(CodeCell, 5, 4)
+'####################################################################################
+'#    Link context helpers
+'####################################################################################
+Private Property Get LinkSprite() As Shape
+    Dim manager As SpriteManager
+    Set manager = SpriteManagerInstance()
+    If manager Is Nothing Then Exit Property
+    Set LinkSprite = manager.LinkSprite
+End Property
 
-If location = "XXXX" Then
-    location = Sheets("Data").Range("C8").Value
-End If
+Private Sub SyncLinkState(ByVal link As Shape, ByVal manager As SpriteManager, ByVal gs As GameState)
+    If link Is Nothing Then Exit Sub
+    If manager Is Nothing Then Exit Sub
+    If gs Is Nothing Then Exit Sub
 
-Dim a, b, c
+    manager.LinkSpriteTop = link.Top
+    manager.LinkSpriteLeft = link.Left
 
-Select Case moveDir
-
-    Case Is = "U"
-        ActiveSheet.Shapes("LinkFall1").Top = LinkSprite.Top - 15
-        ActiveSheet.Shapes("LinkFall1").Left = LinkSprite.Left
-    Case Is = "D"
-        ActiveSheet.Shapes("LinkFall1").Top = LinkSprite.Top + 50
-        ActiveSheet.Shapes("LinkFall1").Left = LinkSprite.Left
-    Case Is = "L"
-        ActiveSheet.Shapes("LinkFall1").Top = LinkSprite.Top
-        ActiveSheet.Shapes("LinkFall1").Left = LinkSprite.Left - 20
-    Case Is = "R"
-        ActiveSheet.Shapes("LinkFall1").Top = LinkSprite.Top
-        ActiveSheet.Shapes("LinkFall1").Left = LinkSprite.Left + 20
-
-End Select
-
-ActiveSheet.Shapes("LinkFall2").Top = ActiveSheet.Shapes("LinkFall1").Top
-ActiveSheet.Shapes("LinkFall2").Left = ActiveSheet.Shapes("LinkFall1").Left
-
-ActiveSheet.Shapes("LinkFall3").Top = ActiveSheet.Shapes("LinkFall1").Top
-ActiveSheet.Shapes("LinkFall3").Left = ActiveSheet.Shapes("LinkFall1").Left
-
-    LinkSprite.Visible = False
-    LinkSprite.Visible = False
-
-    ActiveSheet.Shapes("LinkFall1").Visible = True
-    Range("A1").Copy Range("A2")
-    For a = 1 To 30
-        Sleep 10
-    Next a
-    ActiveSheet.Shapes("LinkFall1").Visible = False
-    
-    
-    ActiveSheet.Shapes("LinkFall2").Visible = True
-    Range("A1").Copy Range("A2")
-    For b = 1 To 30
-        Sleep 10
-    Next b
-    ActiveSheet.Shapes("LinkFall2").Visible = False
-    
-    ActiveSheet.Shapes("LinkFall3").Visible = True
-    Range("A1").Copy Range("A2")
-    For c = 1 To 30
-        Sleep 10
-    Next c
-    ActiveSheet.Shapes("LinkFall3").Visible = False
-    
-    'MsgBox (Sheets("Data").Range("C8").Value)
-    
-    Call Relocate(location)
-    
-    Sheets("Data").Range("C10").Value = "N"
-
-
+    On Error Resume Next
+    gs.LinkCellAddress = link.TopLeftCell.Address
+    Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = gs.LinkCellAddress
+    On Error GoTo 0
 End Sub
 
+Private Function EnsureLinkContext(ByRef gs As GameState, ByRef manager As SpriteManager, _
+                                   ByRef link As Shape, ByRef linkSheet As Worksheet) As Boolean
+    Set gs = GameStateInstance()
+    Set manager = SpriteManagerInstance()
+    Set link = LinkSprite
 
-'##
-'
-'
-'
-'##
-Sub JumpDown()
+    If gs Is Nothing Then Exit Function
+    If manager Is Nothing Then Exit Function
+    If link Is Nothing Then Exit Function
 
-Sheets("Data").Range("C10").Value = "Y"
+    Set linkSheet = link.Parent
+    EnsureLinkContext = True
+End Function
 
-'Reset the 'prevent re-scrolling' timer
-Sheets("Data").Range("C6").Value = "0"
+Private Function NormalizeDirection(ByVal currentDir As String, ByVal fallbackDir As String) As String
+    Dim resolved As String
+    resolved = Trim$(currentDir)
+    If resolved = "" Then resolved = Trim$(fallbackDir)
+    If resolved = "" Then resolved = "D"
+    NormalizeDirection = UCase$(resolved)
+End Function
 
-Dim jumpCol, jumpRow, jumpTo, jumpCell, jumpVal, EnemyVal
-'specify the row to move down to
+Private Function TryGetShape(ByVal hostSheet As Worksheet, ByVal shapeName As String) As Shape
+    If hostSheet Is Nothing Then Exit Function
+    On Error Resume Next
+    Set TryGetShape = hostSheet.Shapes(shapeName)
+    On Error GoTo 0
+End Function
 
-jumpCol = Range(linkCellAddress).Column
-jumpRow = Mid(CodeCell, 5, 3)
+Private Sub PositionShape(ByVal sprite As Shape, ByVal topOffset As Double, ByVal leftOffset As Double)
+    If sprite Is Nothing Then Exit Sub
+    sprite.Top = topOffset
+    sprite.Left = leftOffset
+End Sub
 
-jumpTo = Cells(jumpRow, jumpCol).Address
+Private Function LoadSwordSprites(ByVal linkSheet As Worksheet, _
+                                  ByRef swordUp As Shape, _
+                                  ByRef swordDown As Shape, _
+                                  ByRef swordLeft As Shape, _
+                                  ByRef swordRight As Shape, _
+                                  ByRef swipeUpLeft As Shape, _
+                                  ByRef swipeUpRight As Shape, _
+                                  ByRef swipeDownLeft As Shape, _
+                                  ByRef swipeDownRight As Shape) As Boolean
+    Set swordUp = TryGetShape(linkSheet, "SwordUp")
+    Set swordDown = TryGetShape(linkSheet, "SwordDown")
+    Set swordLeft = TryGetShape(linkSheet, "SwordLeft")
+    Set swordRight = TryGetShape(linkSheet, "SwordRight")
 
-'place the shadow
-ActiveSheet.Shapes("LinkShadow").Top = Range(jumpTo).Top
-ActiveSheet.Shapes("LinkShadow").Left = Range(jumpTo).Left
-ActiveSheet.Shapes("LinkShadow").Left = ActiveSheet.Shapes("LinkShadow").Left - 5
-ActiveSheet.Shapes("LinkShadow").Top = ActiveSheet.Shapes("LinkShadow").Top + 5
-ActiveSheet.Shapes("LinkShadow").Visible = True
+    Set swipeUpLeft = TryGetShape(linkSheet, "SwordSwipeUpLeft")
+    Set swipeUpRight = TryGetShape(linkSheet, "SwordSwipeUpRight")
+    Set swipeDownLeft = TryGetShape(linkSheet, "SwordSwipeDownLeft")
+    Set swipeDownRight = TryGetShape(linkSheet, "SwordSwipeDownRight")
 
-'align the jumping sprites
-ActiveSheet.Shapes("LinkJump1").Top = LinkSprite.Top + 10
-ActiveSheet.Shapes("LinkJump1").Left = LinkSprite.Left
+    LoadSwordSprites = Not (swordUp Is Nothing Or swordDown Is Nothing Or swordLeft Is Nothing Or swordRight Is Nothing)
+End Function
 
-ActiveSheet.Shapes("LinkJump2").Top = ActiveSheet.Shapes("LinkJump1").Top + 30
-ActiveSheet.Shapes("LinkJump2").Left = LinkSprite.Left
+Private Function LoadLinkFacingSprites(ByVal linkSheet As Worksheet, _
+                                       ByRef linkLeft1 As Shape, _
+                                       ByRef linkRight1 As Shape, _
+                                       ByRef linkUp1 As Shape, _
+                                       ByRef linkDown1 As Shape) As Boolean
+    Set linkLeft1 = TryGetShape(linkSheet, "LinkLeft1")
+    Set linkRight1 = TryGetShape(linkSheet, "LinkRight1")
+    Set linkUp1 = TryGetShape(linkSheet, "LinkUp1")
+    Set linkDown1 = TryGetShape(linkSheet, "LinkDown1")
 
-ActiveSheet.Shapes("LinkJump3").Top = ActiveSheet.Shapes("LinkJump2").Top + 30
-ActiveSheet.Shapes("LinkJump3").Left = LinkSprite.Left
+    LoadLinkFacingSprites = Not (linkLeft1 Is Nothing Or linkRight1 Is Nothing Or linkUp1 Is Nothing Or linkDown1 Is Nothing)
+End Function
 
-LinkSprite.Visible = False
-LinkSprite.Visible = False
+Private Function LoadShieldSprites(ByVal linkSheet As Worksheet, _
+                                   ByRef shieldUp As Shape, _
+                                   ByRef shieldDown As Shape, _
+                                   ByRef shieldLeft As Shape, _
+                                   ByRef shieldRight As Shape) As Boolean
+    Set shieldUp = TryGetShape(linkSheet, "LinkShieldUp")
+    Set shieldDown = TryGetShape(linkSheet, "LinkShieldDown")
+    Set shieldLeft = TryGetShape(linkSheet, "LinkShieldLeft")
+    Set shieldRight = TryGetShape(linkSheet, "LinkShieldRight")
 
-ActiveSheet.Shapes("LinkJump1").Visible = True
-ActiveSheet.Shapes("LinkJump2").Visible = False
-ActiveSheet.Shapes("LinkJump3").Visible = False
+    LoadShieldSprites = Not (shieldUp Is Nothing Or shieldDown Is Nothing Or shieldLeft Is Nothing Or shieldRight Is Nothing)
+End Function
 
-'-----------------------------------------------------
-'Begin somersault
-For a = 1 To 10
-ActiveSheet.Shapes("LinkJump1").Top = ActiveSheet.Shapes("LinkJump1").Top + 2
-LinkSprite.Top = ActiveSheet.Shapes("LinkJump1").Top
-linkCellAddress = LinkSprite.TopLeftCell.Address
-jumpCell = ActiveSheet.Shapes("LinkJump1").TopLeftCell.Address
-LinkSprite.Top = ActiveSheet.Shapes("LinkJump1").Top
-jumpVal = Range(jumpCell).Value
-EnemyVal = Mid(jumpVal, 7, 2)
-jumpVal = Left(jumpVal, 2)
+'####################################################################################
+'#    Animation utilities
+'####################################################################################
+Private Sub TriggerFrameTick(ByVal hostSheet As Worksheet, ByVal delayMs As Long)
+    If hostSheet Is Nothing Then Exit Sub
+    hostSheet.Range("A1").Copy hostSheet.Range("A2")
+    Sleep delayMs
+End Sub
 
+Private Sub HandleScrollTrigger(ByVal tileCode As String)
+    Dim scrollCode As String
+    tileCode = Trim$(tileCode)
+    If Len(tileCode) < 2 Then Exit Sub
 
-Select Case jumpVal
+    scrollCode = Left$(tileCode, 2)
 
-    Case Is = "S1"
-        Call myScroll(1)
-    Case Is = "S2"
-        Call myScroll(2)
-    Case Else
-        ' Do nothing
-End Select
+    Select Case scrollCode
+        Case "S1": myScroll 1
+        Case "S2": myScroll 2
+    End Select
+End Sub
 
+Private Sub AdvanceJumpFrame(ByVal frame As Shape, ByVal link As Shape, ByVal manager As SpriteManager, _
+                             ByVal gs As GameState, ByVal linkSheet As Worksheet)
+    Dim stepIndex As Long
+    Dim tileCode As String
 
-Sleep 10
-Range("A1").Copy Range("A2")
-Next a
+    If frame Is Nothing Then Exit Sub
 
+    For stepIndex = 1 To 10
+        frame.Top = frame.Top + 2
+        link.Top = frame.Top
+        SyncLinkState link, manager, gs
 
-'-----------------------------------------------------
-ActiveSheet.Shapes("LinkJump1").Visible = False
-ActiveSheet.Shapes("LinkJump2").Visible = True
+        tileCode = CStr(frame.TopLeftCell.Value)
+        HandleScrollTrigger tileCode
+        TriggerFrameTick linkSheet, 10
+    Next stepIndex
+End Sub
 
-For a = 1 To 10
-ActiveSheet.Shapes("LinkJump2").Top = ActiveSheet.Shapes("LinkJump2").Top + 2
-LinkSprite.Top = ActiveSheet.Shapes("LinkJump2").Top
-linkCellAddress = LinkSprite.TopLeftCell.Address
-jumpCell = ActiveSheet.Shapes("LinkJump2").TopLeftCell.Address
-jumpVal = Range(jumpCell).Value
-EnemyVal = Mid(jumpVal, 7, 2)
-jumpVal = Left(jumpVal, 2)
+Private Sub PlayFallFrame(ByVal frame As Shape, ByVal linkSheet As Worksheet)
+    Dim iteration As Long
 
+    If frame Is Nothing Then Exit Sub
 
-Select Case jumpVal
+    frame.Visible = True
+    For iteration = 1 To 30
+        TriggerFrameTick linkSheet, 10
+    Next iteration
+    frame.Visible = False
+End Sub
 
-    Case Is = "S1"
-        Call myScroll(1)
-    Case Is = "S2"
-        Call myScroll(2)
-    Case Else
-        ' Do nothing
-End Select
+Private Sub HideShapes(ByVal shapeSet As Variant)
+    Dim frame As Variant
+    For Each frame In shapeSet
+        If Not frame Is Nothing Then frame.Visible = False
+    Next frame
+End Sub
 
+Private Sub RegisterSwordHits(ByVal swordFrame As Shape)
+    If swordFrame Is Nothing Then Exit Sub
 
-Sleep 10
-Range("A1").Copy Range("A2")
-Next a
+    Dim enemyManager As EnemyManager
+    Set enemyManager = EnemyManagerInstance()
+    If Not enemyManager Is Nothing Then
+        enemyManager.HandleSwordHit swordFrame
+    End If
 
-'-----------------------------------------------------
-ActiveSheet.Shapes("LinkJump2").Visible = False
-ActiveSheet.Shapes("LinkJump3").Visible = True
-
-
-For a = 1 To 10
-ActiveSheet.Shapes("LinkJump3").Top = ActiveSheet.Shapes("LinkJump3").Top + 2
-LinkSprite.Top = ActiveSheet.Shapes("LinkJump3").Top
-linkCellAddress = LinkSprite.TopLeftCell.Address
-jumpCell = ActiveSheet.Shapes("LinkJump3").TopLeftCell.Address
-jumpVal = Range(jumpCell).Value
-EnemyVal = Mid(jumpVal, 7, 2)
-jumpVal = Left(jumpVal, 2)
-
-
-Select Case jumpVal
-
-    Case Is = "S1"
-        Call myScroll(1)
-    Case Is = "S2"
-        Call myScroll(2)
-    Case Else
-        ' Do nothing
-End Select
-
-
-Sleep 10
-Range("A1").Copy Range("A2")
-Next a
-
-'-----------------------------------------------------
-ActiveSheet.Shapes("LinkJump3").Visible = False
-
-LinkSprite.Top = ActiveSheet.Shapes("LinkJump3").Top
-
-LinkSprite.Visible = True
-linkCellAddress = LinkSprite.TopLeftCell.Address
-CodeCell = ""
-
-
-' Fall to bottom after somersault
-Do Until LinkSprite.Top >= Range(jumpTo).Top - 30
-
-LinkSprite.Top = LinkSprite.Top + 4
-LinkSpriteLeft = LinkSprite.Left
-LinkSpriteTop = LinkSprite.Top
-linkCellAddress = LinkSprite.TopLeftCell.Address
-
-jumpCell = LinkSprite.TopLeftCell.Address
-jumpVal = Range(jumpCell).Value
-EnemyVal = Mid(jumpVal, 7, 2)
-jumpVal = Left(jumpVal, 2)
-
-Select Case jumpVal
-
-    Case Is = "S1"
-        Call myScroll(1)
-    Case Is = "S2"
-        Call myScroll(2)
-    Case Else
-        ' Do nothing
-End Select
-
-Sleep 10
-Range("A1").Copy Range("A2")
-Loop
-
-ActiveSheet.Shapes("LinkShadow").Visible = False
-
-Sheets("Data").Range("C10").Value = "N"
+    Call swordHitBush(swordFrame)
 End Sub
 
 '####################################################################################
-'#
-'#    Sword stuff
-'#
+'#    Falling / jumping
 '####################################################################################
+Public Sub Falling()
+    Dim gs As GameState
+    Dim manager As SpriteManager
+    Dim link As Shape
+    Dim linkSheet As Worksheet
+    If Not EnsureLinkContext(gs, manager, link, linkSheet) Then Exit Sub
 
-Sub swordSwipe(Indicator)
+    Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "Y"
 
+    Dim targetCode As String
+    targetCode = Mid$(gs.CodeCell, 5, 4)
+    If targetCode = "XXXX" Then
+        targetCode = Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value
+    End If
 
-Dim keypressed
+    Dim direction As String
+    direction = gs.MoveDir
+    If direction = "" Then direction = gs.LastDir
 
-If Indicator = 2 Then
-    keypressed = DPress
-    
-ElseIf Indicator = 1 Then
-    keypressed = CPress
-Else
-    keypressed = 0
-End If
+    Dim fallFrames(1 To 3) As Shape
+    Set fallFrames(1) = TryGetShape(linkSheet, "LinkFall1")
+    Set fallFrames(2) = TryGetShape(linkSheet, "LinkFall2")
+    Set fallFrames(3) = TryGetShape(linkSheet, "LinkFall3")
 
-'MsgBox ("Indicator = " & Indicator & ".  Keypressed = " & keypressed)
+    If fallFrames(1) Is Nothing Or fallFrames(2) Is Nothing Or fallFrames(3) Is Nothing Then
+        link.Visible = True
+        Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "N"
+        Exit Sub
+    End If
 
-Select Case lastDir
+    Dim baseTop As Double
+    Dim baseLeft As Double
+    baseTop = link.Top
+    baseLeft = link.Left
 
-    Case Is = "L"
-        ActiveSheet.Shapes("SwordUp").Top = LinkSprite.Top - 30
-        ActiveSheet.Shapes("SwordUp").Left = LinkSprite.Left - 10
-        
-        ActiveSheet.Shapes("SwordSwipeUpLeft").Top = LinkSprite.Top - 30
-        ActiveSheet.Shapes("SwordSwipeUpLeft").Left = LinkSprite.Left - 50
-        
-        ActiveSheet.Shapes("SwordLeft").Top = LinkSprite.Top
-        ActiveSheet.Shapes("SwordLeft").Left = LinkSprite.Left - 50
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordUp")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeUpLeft")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordLeft")
-        
-    Case Is = "R"
-        'MsgBox "aligning sword"
-        ActiveSheet.Shapes("SwordUp").Top = LinkSprite.Top - 30
-        ActiveSheet.Shapes("SwordUp").Left = LinkSprite.Left + 30
-        
-        ActiveSheet.Shapes("SwordSwipeUpRight").Top = LinkSprite.Top - 30
-        ActiveSheet.Shapes("SwordSwipeUpRight").Left = LinkSprite.Left + 45
-        
-        ActiveSheet.Shapes("SwordRight").Top = LinkSprite.Top
-        ActiveSheet.Shapes("SwordRight").Left = LinkSprite.Left + 45
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordUp")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeUpRight")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordRight")
-        
-    Case Is = "U"
-        ActiveSheet.Shapes("SwordUp").Top = LinkSprite.Top - 45
-        ActiveSheet.Shapes("SwordUp").Left = LinkSprite.Left + 5
-        
-        ActiveSheet.Shapes("SwordSwipeUpRight").Top = LinkSprite.Top - 45
-        ActiveSheet.Shapes("SwordSwipeUpRight").Left = LinkSprite.Left + 25
-        
-        ActiveSheet.Shapes("SwordRight").Top = LinkSprite.Top - 15
-        ActiveSheet.Shapes("SwordRight").Left = LinkSprite.Left + 35
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordRight")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeUpRight")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordUp")
-        
-    Case Is = "D"
-        ActiveSheet.Shapes("SwordLeft").Top = LinkSprite.Top
-        ActiveSheet.Shapes("SwordLeft").Left = LinkSprite.Left - 50
-        
-        ActiveSheet.Shapes("SwordSwipeDownLeft").Top = LinkSprite.Top + 30
-        ActiveSheet.Shapes("SwordSwipeDownLeft").Left = LinkSprite.Left - 45
-        
-        ActiveSheet.Shapes("SwordDown").Top = LinkSprite.Top + 40
-        ActiveSheet.Shapes("SwordDown").Left = LinkSprite.Left - 25
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordDown")
-    
-    Case Is = "LD"
-    
-        ActiveSheet.Shapes("SwordLeft").Top = LinkSprite.Top
-        ActiveSheet.Shapes("SwordLeft").Left = LinkSprite.Left - 50
-        
-        ActiveSheet.Shapes("SwordSwipeDownLeft").Top = LinkSprite.Top + 30
-        ActiveSheet.Shapes("SwordSwipeDownLeft").Left = LinkSprite.Left - 45
-        
-        ActiveSheet.Shapes("SwordDown").Top = LinkSprite.Top + 40
-        ActiveSheet.Shapes("SwordDown").Left = LinkSprite.Left - 25
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordDown")
-        
-    Case Is = "RD"
-    
-        ActiveSheet.Shapes("SwordLeft").Top = LinkSprite.Top
-        ActiveSheet.Shapes("SwordLeft").Left = LinkSprite.Left - 50
-        
-        ActiveSheet.Shapes("SwordSwipeDownLeft").Top = LinkSprite.Top + 30
-        ActiveSheet.Shapes("SwordSwipeDownLeft").Left = LinkSprite.Left - 45
-        
-        ActiveSheet.Shapes("SwordDown").Top = LinkSprite.Top + 40
-        ActiveSheet.Shapes("SwordDown").Left = LinkSprite.Left - 25
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordLeft")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeDownLeft")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordDown")
-  
-    Case Is = "RU"
-    
-        ActiveSheet.Shapes("SwordUp").Top = LinkSprite.Top - 45
-        ActiveSheet.Shapes("SwordUp").Left = LinkSprite.Left + 5
-        
-        ActiveSheet.Shapes("SwordSwipeUpRight").Top = LinkSprite.Top - 45
-        ActiveSheet.Shapes("SwordSwipeUpRight").Left = LinkSprite.Left + 25
-        
-        ActiveSheet.Shapes("SwordRight").Top = LinkSprite.Top - 15
-        ActiveSheet.Shapes("SwordRight").Left = LinkSprite.Left + 35
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordRight")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeUpRight")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordUp")
-        
-    Case Is = "LU"
-    
-        ActiveSheet.Shapes("SwordUp").Top = LinkSprite.Top - 45
-        ActiveSheet.Shapes("SwordUp").Left = LinkSprite.Left + 5
-        
-        ActiveSheet.Shapes("SwordSwipeUpRight").Top = LinkSprite.Top - 45
-        ActiveSheet.Shapes("SwordSwipeUpRight").Left = LinkSprite.Left + 25
-        
-        ActiveSheet.Shapes("SwordRight").Top = LinkSprite.Top - 15
-        ActiveSheet.Shapes("SwordRight").Left = LinkSprite.Left + 35
-        
-        Set SwordFrame1 = ActiveSheet.Shapes("SwordRight")
-        Set SwordFrame2 = ActiveSheet.Shapes("SwordSwipeUpRight")
-        Set SwordFrame3 = ActiveSheet.Shapes("SwordUp")
-        
-End Select
+    Select Case direction
+        Case "U"
+            baseTop = link.Top - 15
+        Case "D"
+            baseTop = link.Top + 50
+        Case "L"
+            baseLeft = link.Left - 20
+        Case "R"
+            baseLeft = link.Left + 20
+    End Select
 
-Select Case keypressed
+    Dim index As Long
+    For index = LBound(fallFrames) To UBound(fallFrames)
+        PositionShape fallFrames(index), baseTop, baseLeft
+    Next index
 
-    Case Is <= 1
-        SwordFrame1.Visible = True
-        Range("A1").Copy Range("A2")
-        Sleep 25
-        
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame1_1)
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame1_2)
-        
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame2_1)
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame2_2)
-        
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame3_1)
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame3_2)
-        
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame4_1)
-        'Call didSwordHit(SwordFrame1, RNDenemyFrame4_2)
-                
-        SwordFrame1.Visible = False
-        SwordFrame2.Visible = True
-        Range("A1").Copy Range("A2")
-        Sleep 25
+    link.Visible = False
 
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame1_1)
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame1_2)
-        
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame2_1)
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame2_2)
-        
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame3_1)
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame3_2)
-        
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame4_1)
-        'Call didSwordHit(SwordFrame2, RNDenemyFrame4_2)
+    For index = LBound(fallFrames) To UBound(fallFrames)
+        PlayFallFrame fallFrames(index), linkSheet
+    Next index
 
+    Relocate targetCode
 
-        SwordFrame2.Visible = False
-        SwordFrame3.Visible = True
-        Range("A1").Copy Range("A2")
-        Sleep 25
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame1_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame1_2)
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame2_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame2_2)
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame3_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame3_2)
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame4_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame4_2)
-        
-        Call swordHitBush(SwordFrame3)
+    If EnsureLinkContext(gs, manager, link, linkSheet) Then
+        SyncLinkState link, manager, gs
+    End If
 
-        
-        
-        SwordFrame3.Visible = False
-        
-        Case Is <= 20
-        
-        'do nothing
-        
-        
-        Case Is > 20
-        SwordFrame3.Visible = True
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame1_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame1_2)
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame2_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame2_2)
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame3_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame3_2)
-        
-        Call didSwordHit(SwordFrame3, RNDenemyFrame4_1)
-        Call didSwordHit(SwordFrame3, RNDenemyFrame4_2)
-        
-        Call swordHitBush(SwordFrame3)
-        'MsgBox SwordHit
-        
+    Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "N"
+End Sub
+
+Public Sub JumpDown()
+    Dim gs As GameState
+    Dim manager As SpriteManager
+    Dim link As Shape
+    Dim linkSheet As Worksheet
+    If Not EnsureLinkContext(gs, manager, link, linkSheet) Then Exit Sub
+
+    Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "Y"
+    Sheets(SHEET_DATA).Range(RANGE_SCROLL_COOLDOWN).Value = "0"
+
+    Dim startCell As Range
+    Set startCell = link.TopLeftCell
+
+    Dim jumpColumn As Long
+    jumpColumn = startCell.Column
+
+    Dim jumpRow As Long
+    jumpRow = CLng(Val(Mid$(gs.CodeCell, 5, 3)))
+    If jumpRow = 0 Then jumpRow = startCell.Row
+
+    Dim jumpTarget As Range
+    Set jumpTarget = linkSheet.Cells(jumpRow, jumpColumn)
+
+    Dim shadow As Shape
+    Set shadow = TryGetShape(linkSheet, "LinkShadow")
+    If Not shadow Is Nothing Then
+        PositionShape shadow, jumpTarget.Top + 5, jumpTarget.Left - 5
+        shadow.Visible = True
+    End If
+
+    Dim jumpFrames(1 To 3) As Shape
+    Set jumpFrames(1) = TryGetShape(linkSheet, "LinkJump1")
+    Set jumpFrames(2) = TryGetShape(linkSheet, "LinkJump2")
+    Set jumpFrames(3) = TryGetShape(linkSheet, "LinkJump3")
+
+    If jumpFrames(1) Is Nothing Or jumpFrames(2) Is Nothing Or jumpFrames(3) Is Nothing Then
+        If Not shadow Is Nothing Then shadow.Visible = False
+        link.Visible = True
+        Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "N"
+        Exit Sub
+    End If
+
+    PositionShape jumpFrames(1), link.Top + 10, link.Left
+    PositionShape jumpFrames(2), jumpFrames(1).Top + 30, link.Left
+    PositionShape jumpFrames(3), jumpFrames(2).Top + 30, link.Left
+
+    link.Visible = False
+
+    Dim stage As Long
+    For stage = LBound(jumpFrames) To UBound(jumpFrames)
+        If stage > LBound(jumpFrames) Then
+            jumpFrames(stage - 1).Visible = False
+        End If
+
+        jumpFrames(stage).Visible = True
+        AdvanceJumpFrame jumpFrames(stage), link, manager, gs, linkSheet
+    Next stage
+
+    jumpFrames(UBound(jumpFrames)).Visible = False
+
+    link.Visible = True
+    SyncLinkState link, manager, gs
+    gs.CodeCell = ""
+
+    Do
+        link.Top = link.Top + 4
+        SyncLinkState link, manager, gs
+        HandleScrollTrigger CStr(link.TopLeftCell.Value)
+        TriggerFrameTick linkSheet, 10
+    Loop Until link.Top >= jumpTarget.Top - 30
+
+    If Not shadow Is Nothing Then shadow.Visible = False
+
+    Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "N"
+End Sub
+
+'####################################################################################
+'#    Sword actions
+'####################################################################################
+Public Sub swordSwipe(ByVal actionSlot As Long, ByVal pressCount As Long)
+    Dim gs As GameState
+    Dim manager As SpriteManager
+    Dim link As Shape
+    Dim linkSheet As Worksheet
+    If Not EnsureLinkContext(gs, manager, link, linkSheet) Then Exit Sub
+
+    Dim swordUp As Shape
+    Dim swordDown As Shape
+    Dim swordLeft As Shape
+    Dim swordRight As Shape
+    Dim swipeUpLeft As Shape
+    Dim swipeUpRight As Shape
+    Dim swipeDownLeft As Shape
+    Dim swipeDownRight As Shape
+
+    If Not LoadSwordSprites(linkSheet, swordUp, swordDown, swordLeft, swordRight, _
+                            swipeUpLeft, swipeUpRight, swipeDownLeft, swipeDownRight) Then Exit Sub
+
+    HideShapes Array(swordUp, swordDown, swordLeft, swordRight, swipeUpLeft, swipeUpRight, swipeDownLeft, swipeDownRight)
+
+    Dim frame1 As Shape
+    Dim frame2 As Shape
+    Dim frame3 As Shape
+
+    Dim direction As String
+    direction = NormalizeDirection(gs.MoveDir, gs.LastDir)
+
+    Select Case direction
+        Case "L"
+            PositionShape swordUp, link.Top - 30, link.Left - 10
+            PositionShape swipeUpLeft, link.Top - 30, link.Left - 50
+            PositionShape swordLeft, link.Top, link.Left - 50
+
+            Set frame1 = swordUp
+            Set frame2 = swipeUpLeft
+            Set frame3 = swordLeft
+
+        Case "R"
+            PositionShape swordUp, link.Top - 30, link.Left + 30
+            PositionShape swipeUpRight, link.Top - 30, link.Left + 45
+            PositionShape swordRight, link.Top, link.Left + 45
+
+            Set frame1 = swordUp
+            Set frame2 = swipeUpRight
+            Set frame3 = swordRight
+
+        Case "U", "RU", "LU"
+            PositionShape swordUp, link.Top - 45, link.Left + 5
+            PositionShape swipeUpRight, link.Top - 45, link.Left + 25
+            PositionShape swordRight, link.Top - 15, link.Left + 35
+
+            Set frame1 = swordRight
+            Set frame2 = swipeUpRight
+            Set frame3 = swordUp
+
+        Case Else   ' Down-facing including diagonals
+            PositionShape swordLeft, link.Top, link.Left - 50
+            PositionShape swipeDownLeft, link.Top + 30, link.Left - 45
+            PositionShape swordDown, link.Top + 40, link.Left - 25
+
+            Set frame1 = swordLeft
+            Set frame2 = swipeDownLeft
+            Set frame3 = swordDown
+    End Select
+
+    If frame1 Is Nothing Or frame2 Is Nothing Or frame3 Is Nothing Then Exit Sub
+
+    Select Case pressCount
+        Case Is <= 1
+            frame1.Visible = True
+            TriggerFrameTick linkSheet, 25
+
+            frame1.Visible = False
+            frame2.Visible = True
+            TriggerFrameTick linkSheet, 25
+
+            frame2.Visible = False
+            frame3.Visible = True
+            TriggerFrameTick linkSheet, 25
+
+            RegisterSwordHits frame3
+            frame3.Visible = False
+
+        Case 2 To 20
+            ' Charging phase – keep sword hidden but retain context.
+
         Case Else
-        
-
-
-End Select
-
-
-
+            frame3.Visible = True
+            RegisterSwordHits frame3
+    End Select
 End Sub
 
-Sub swordSpin()
+Public Sub swordSpin()
+    Dim gs As GameState
+    Dim manager As SpriteManager
+    Dim link As Shape
+    Dim linkSheet As Worksheet
+    If Not EnsureLinkContext(gs, manager, link, linkSheet) Then Exit Sub
 
-Dim spinFrame1, spinFrame2, SpinFrame3, spinFrame4, spinFrame5, spinFrame6, spinFrame7, spinFrame8
-Dim linkSpin1, linkSpin2, linkSpin3, linkSpin4
+    Dim swordUp As Shape
+    Dim swordDown As Shape
+    Dim swordLeft As Shape
+    Dim swordRight As Shape
+    Dim swipeUpLeft As Shape
+    Dim swipeUpRight As Shape
+    Dim swipeDownLeft As Shape
+    Dim swipeDownRight As Shape
 
-SwordFrame1.Visible = False
-SwordFrame2.Visible = False
-SwordFrame3.Visible = False
+    If Not LoadSwordSprites(linkSheet, swordUp, swordDown, swordLeft, swordRight, _
+                            swipeUpLeft, swipeUpRight, swipeDownLeft, swipeDownRight) Then Exit Sub
 
-ActiveSheet.Shapes("LinkLeft1").Visible = False
-ActiveSheet.Shapes("LinkLeft2").Visible = False
+    Dim linkLeft1 As Shape
+    Dim linkRight1 As Shape
+    Dim linkUp1 As Shape
+    Dim linkDown1 As Shape
 
-ActiveSheet.Shapes("LinkRight1").Visible = False
-ActiveSheet.Shapes("LinkRight2").Visible = False
+    Call LoadLinkFacingSprites(linkSheet, linkLeft1, linkRight1, linkUp1, linkDown1)
 
-ActiveSheet.Shapes("LinkUp1").Visible = False
-ActiveSheet.Shapes("LinkUp2").Visible = False
+    HideShapes Array(swordUp, swordDown, swordLeft, swordRight, swipeUpLeft, swipeUpRight, swipeDownLeft, swipeDownRight)
+    HideShapes Array(linkLeft1, linkRight1, linkUp1, linkDown1)
 
-ActiveSheet.Shapes("LinkDown1").Visible = False
-ActiveSheet.Shapes("LinkDown2").Visible = False
+    PositionShape swordUp, link.Top - 30, link.Left
+    PositionShape swordRight, link.Top, link.Left + 35
+    PositionShape swordLeft, link.Top, link.Left - 50
+    PositionShape swordDown, link.Top + 40, link.Left - 25
+    PositionShape swipeUpLeft, link.Top - 30, link.Left - 50
+    PositionShape swipeUpRight, link.Top - 45, link.Left + 25
+    PositionShape swipeDownRight, link.Top + 45, link.Left + 35
+    PositionShape swipeDownLeft, link.Top + 30, link.Left - 45
 
-'MsgBox "spinning! " & SwordFrame1.Name
+    Dim swordOrder(1 To 8) As Shape
+    Dim linkOrder(1 To 4) As Shape
 
-'align the frames
-    ActiveSheet.Shapes("SwordUp").Top = LinkSprite.Top - 30
-    ActiveSheet.Shapes("SwordUp").Left = LinkSprite.Left
-    
-    ActiveSheet.Shapes("SwordRight").Top = LinkSprite.Top
-    ActiveSheet.Shapes("SwordRight").Left = LinkSprite.Left + 35
+    Dim direction As String
+    direction = NormalizeDirection(gs.MoveDir, gs.LastDir)
 
-    ActiveSheet.Shapes("SwordLeft").Top = LinkSprite.Top
-    ActiveSheet.Shapes("SwordLeft").Left = LinkSprite.Left - 50
+    Select Case direction
+        Case "L"
+            Set swordOrder(1) = swordLeft
+            Set swordOrder(2) = swipeDownLeft
+            Set swordOrder(3) = swordDown
+            Set swordOrder(4) = swipeDownRight
+            Set swordOrder(5) = swordRight
+            Set swordOrder(6) = swipeUpRight
+            Set swordOrder(7) = swordUp
+            Set swordOrder(8) = swipeUpLeft
 
-    ActiveSheet.Shapes("SwordDown").Top = LinkSprite.Top + 40
-    ActiveSheet.Shapes("SwordDown").Left = LinkSprite.Left - 25
-    
-    ActiveSheet.Shapes("SwordSwipeUpLeft").Top = LinkSprite.Top - 30
-    ActiveSheet.Shapes("SwordSwipeUpLeft").Left = LinkSprite.Left - 50
+            Set linkOrder(1) = linkLeft1
+            Set linkOrder(2) = linkDown1
+            Set linkOrder(3) = linkRight1
+            Set linkOrder(4) = linkUp1
 
-    ActiveSheet.Shapes("SwordSwipeUpRight").Top = LinkSprite.Top - 45
-    ActiveSheet.Shapes("SwordSwipeUpRight").Left = LinkSprite.Left + 25
-    
-    ActiveSheet.Shapes("SwordSwipeDownRight").Top = LinkSprite.Top + 45
-    ActiveSheet.Shapes("SwordSwipeDownRight").Left = LinkSprite.Left + 35
+        Case "R", "RU", "LU"
+            Set swordOrder(1) = swordRight
+            Set swordOrder(2) = swipeDownRight
+            Set swordOrder(3) = swordDown
+            Set swordOrder(4) = swipeDownLeft
+            Set swordOrder(5) = swordLeft
+            Set swordOrder(6) = swipeUpLeft
+            Set swordOrder(7) = swordUp
+            Set swordOrder(8) = swipeUpRight
 
-    ActiveSheet.Shapes("SwordSwipeDownLeft").Top = LinkSprite.Top + 30
-    ActiveSheet.Shapes("SwordSwipeDownLeft").Left = LinkSprite.Left - 45
-        
-Select Case lastDir
+            Set linkOrder(1) = linkRight1
+            Set linkOrder(2) = linkDown1
+            Set linkOrder(3) = linkLeft1
+            Set linkOrder(4) = linkUp1
 
-    Case Is = "L"
+        Case "U"
+            Set swordOrder(1) = swordUp
+            Set swordOrder(2) = swipeUpLeft
+            Set swordOrder(3) = swordLeft
+            Set swordOrder(4) = swipeDownLeft
+            Set swordOrder(5) = swordDown
+            Set swordOrder(6) = swipeDownRight
+            Set swordOrder(7) = swordRight
+            Set swordOrder(8) = swipeUpRight
 
-        Set spinFrame1 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set spinFrame5 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpRight")
-        Set spinFrame7 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkLeft1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkUp1")
+            Set linkOrder(1) = linkUp1
+            Set linkOrder(2) = linkLeft1
+            Set linkOrder(3) = linkDown1
+            Set linkOrder(4) = linkRight1
 
-    Case Is = "R"
-        Set spinFrame1 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        Set spinFrame5 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set spinFrame7 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeUpRight")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkLeft1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkUp1")
-        
-    Case Is = "RU"
-        Set spinFrame1 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        Set spinFrame5 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set spinFrame7 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeUpRight")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkLeft1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkUp1")
-        
-    Case Is = "LU"
-        Set spinFrame1 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        Set spinFrame5 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set spinFrame7 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeUpRight")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkLeft1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkUp1")
-        
-    Case Is = "U"
-        Set spinFrame1 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        Set spinFrame5 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set spinFrame7 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeUpRight")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkUp1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkLeft1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkRight1")
-        
-    Case Is = "D"
-        Set spinFrame1 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeUpRight")
-        Set spinFrame5 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set spinFrame7 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkUp1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkLeft1")
-        
-    Case Is = "LD"
-        Set spinFrame1 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeUpRight")
-        Set spinFrame5 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set spinFrame7 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkUp1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkLeft1")
+        Case Else
+            Set swordOrder(1) = swordDown
+            Set swordOrder(2) = swipeDownRight
+            Set swordOrder(3) = swordRight
+            Set swordOrder(4) = swipeUpRight
+            Set swordOrder(5) = swordUp
+            Set swordOrder(6) = swipeUpLeft
+            Set swordOrder(7) = swordLeft
+            Set swordOrder(8) = swipeDownLeft
 
-    Case Is = "RD"
-        Set spinFrame1 = ActiveSheet.Shapes("swordDown")
-        Set spinFrame2 = ActiveSheet.Shapes("swordSwipeDownRight")
-        Set SpinFrame3 = ActiveSheet.Shapes("swordRight")
-        Set spinFrame4 = ActiveSheet.Shapes("swordSwipeUpRight")
-        Set spinFrame5 = ActiveSheet.Shapes("swordUp")
-        Set spinFrame6 = ActiveSheet.Shapes("swordSwipeUpLeft")
-        Set spinFrame7 = ActiveSheet.Shapes("swordLeft")
-        Set spinFrame8 = ActiveSheet.Shapes("swordSwipeDownLeft")
-        
-        Set linkSpin1 = ActiveSheet.Shapes("LinkDown1")
-        Set linkSpin2 = ActiveSheet.Shapes("LinkRight1")
-        Set linkSpin3 = ActiveSheet.Shapes("LinkUp1")
-        Set linkSpin4 = ActiveSheet.Shapes("LinkLeft1")
-End Select
+            Set linkOrder(1) = linkDown1
+            Set linkOrder(2) = linkRight1
+            Set linkOrder(3) = linkUp1
+            Set linkOrder(4) = linkLeft1
+    End Select
 
-'animate the spin
+    If swordOrder(1) Is Nothing Then Exit Sub
 
-    spinFrame1.Visible = True
-    linkSpin1.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
-    
-    spinFrame1.Visible = False
-    spinFrame2.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
+    Dim stepIndex As Long
+    For stepIndex = LBound(swordOrder) To UBound(swordOrder)
+        swordOrder(stepIndex).Visible = True
+        If stepIndex > LBound(swordOrder) Then
+            swordOrder(stepIndex - 1).Visible = False
+        End If
 
-    spinFrame2.Visible = False
-    SpinFrame3.Visible = True
-    linkSpin1.Visible = False
-    linkSpin2.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
-    
-    SpinFrame3.Visible = False
-    spinFrame4.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
+        Select Case stepIndex
+            Case 1
+                If Not linkOrder(1) Is Nothing Then linkOrder(1).Visible = True
+            Case 3
+                If Not linkOrder(1) Is Nothing Then linkOrder(1).Visible = False
+                If Not linkOrder(2) Is Nothing Then linkOrder(2).Visible = True
+            Case 5
+                If Not linkOrder(2) Is Nothing Then linkOrder(2).Visible = False
+                If Not linkOrder(3) Is Nothing Then linkOrder(3).Visible = True
+            Case 7
+                If Not linkOrder(3) Is Nothing Then linkOrder(3).Visible = False
+                If Not linkOrder(4) Is Nothing Then linkOrder(4).Visible = True
+        End Select
 
-    spinFrame4.Visible = False
-    spinFrame5.Visible = True
-    linkSpin2.Visible = False
-    linkSpin3.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
-    
-    spinFrame5.Visible = False
-    spinFrame6.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
+        TriggerFrameTick linkSheet, 25
+    Next stepIndex
 
-    spinFrame6.Visible = False
-    spinFrame7.Visible = True
-    linkSpin3.Visible = False
-    linkSpin4.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
-    
-    spinFrame7.Visible = False
-    spinFrame8.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
-    
-    spinFrame8.Visible = False
-    spinFrame1.Visible = True
-    linkSpin4.Visible = False
-    linkSpin1.Visible = True
-    Range("A1").Copy Range("A2")
-    Sleep 25
+    swordOrder(UBound(swordOrder)).Visible = False
+    swordOrder(LBound(swordOrder)).Visible = True
+    If Not linkOrder(4) Is Nothing Then linkOrder(4).Visible = False
+    If Not linkOrder(1) Is Nothing Then linkOrder(1).Visible = True
+    TriggerFrameTick linkSheet, 25
 
-    spinFrame1.Visible = False
-
-
-spinFrame1 = ""
-spinFrame2 = ""
-SpinFrame3 = ""
-spinFrame4 = ""
-spinFrame5 = ""
-spinFrame6 = ""
-spinFrame7 = ""
-spinFrame8 = ""
-
-linkSpin1 = ""
-linkSpin2 = ""
-linkSpin3 = ""
-linkSpin4 = ""
-
-
-
-
+    swordOrder(LBound(swordOrder)).Visible = False
+    If Not linkOrder(1) Is Nothing Then linkOrder(1).Visible = False
 End Sub
 
+Public Sub showShield()
+    Dim gs As GameState
+    Dim manager As SpriteManager
+    Dim link As Shape
+    Dim linkSheet As Worksheet
+    If Not EnsureLinkContext(gs, manager, link, linkSheet) Then Exit Sub
 
-Sub showShield()
-Sheets("Data").Range("C28").Value = "Y"
+    Sheets(SHEET_DATA).Range(RANGE_SHIELD_STATE).Value = "Y"
 
-Select Case moveDir
-    
-    Case Is = "D"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldDown")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldUp").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-    Case Is = "LD"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldDown")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldUp").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-    Case Is = "RD"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldDown")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldUp").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-     Case Is = "U"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldUp")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldDown").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-     Case Is = "RU"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldUp")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldDown").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-     Case Is = "LU"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldUp")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldDown").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-     Case Is = "L"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldLeft")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldUp").Visible = False
-        ActiveSheet.Shapes("LinkShieldDown").Visible = False
-        ActiveSheet.Shapes("LinkShieldRight").Visible = False
-        
-     Case Is = "R"
-        Set shieldSprite = ActiveSheet.Shapes("LinkShieldRight")
-        shieldSprite.Top = LinkSprite.Top
-        shieldSprite.Left = LinkSprite.Left
-        shieldSprite.Visible = True
-        ActiveSheet.Shapes("LinkShieldUp").Visible = False
-        ActiveSheet.Shapes("LinkShieldLeft").Visible = False
-        ActiveSheet.Shapes("LinkShieldDown").Visible = False
-    Case Else
+    Dim shieldUp As Shape
+    Dim shieldDown As Shape
+    Dim shieldLeft As Shape
+    Dim shieldRight As Shape
 
+    If Not LoadShieldSprites(linkSheet, shieldUp, shieldDown, shieldLeft, shieldRight) Then Exit Sub
 
-End Select
+    HideShapes Array(shieldUp, shieldDown, shieldLeft, shieldRight)
 
+    Dim direction As String
+    direction = NormalizeDirection(gs.MoveDir, gs.LastDir)
+
+    Dim shieldSprite As Shape
+
+    Select Case direction
+        Case "D", "LD", "RD"
+            Set shieldSprite = shieldDown
+        Case "U", "RU", "LU"
+            Set shieldSprite = shieldUp
+        Case "L"
+            Set shieldSprite = shieldLeft
+        Case "R"
+            Set shieldSprite = shieldRight
+        Case Else
+            Set shieldSprite = shieldDown
+    End Select
+
+    If shieldSprite Is Nothing Then Exit Sub
+
+    PositionShape shieldSprite, link.Top, link.Left
+    shieldSprite.Visible = True
 End Sub
 

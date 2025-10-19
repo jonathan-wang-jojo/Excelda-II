@@ -9,51 +9,41 @@ Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey A
 ' Handles all action items and action sprites (sword, shield, etc.)
 '###################################################################################
 
+Private Const SWORD_SPIN_THRESHOLD As Long = 20
+
 Private Type ActionData
     CItem As String
     DItem As String
     CPress As Long
     DPress As Long
-    SwordFrame1 As Shape
-    SwordFrame2 As Shape
-    SwordFrame3 As Shape
-    ShieldSprite As Shape
-    ScreenName As String
 End Type
 
 Private m_Action As ActionData
 
 ' Initialization
 Private Sub Class_Initialize()
-    LoadItemsFromSheet
+    InitializeState
 End Sub
 
-' Core lifecycle
-Public Sub Reset()
+Private Sub InitializeState()
+    m_Action.CItem = ""
+    m_Action.DItem = ""
     m_Action.CPress = 0
     m_Action.DPress = 0
     LoadItemsFromSheet
 End Sub
 
-Public Sub Destroy()
-    Reset
-    Set m_Action.SwordFrame1 = Nothing
-    Set m_Action.SwordFrame2 = Nothing
-    Set m_Action.SwordFrame3 = Nothing
-    Set m_Action.ShieldSprite = Nothing
+' Core lifecycle
+Public Sub Reset()
+    InitializeState
 End Sub
 
-Public Sub Initialize(ByVal screenName As String)
-    On Error Resume Next
-    Dim ws As Worksheet
-    Set ws = Sheets(screenName)
-    m_Action.ScreenName = screenName
-    Set m_Action.SwordFrame1 = ws.Shapes("SwordLeft")
-    Set m_Action.SwordFrame2 = ws.Shapes("SwordSwipeDownLeft")
-    Set m_Action.SwordFrame3 = ws.Shapes("SwordDown")
-    Set m_Action.ShieldSprite = ws.Shapes("LinkShieldDown")
-    On Error GoTo 0
-    LoadItemsFromSheet
+Public Sub Destroy()
+    InitializeState
+End Sub
+
+Public Sub Initialize(Optional ByVal screenName As String = "")
+    InitializeState
 End Sub
 
 ' Simple accessors
@@ -81,35 +71,22 @@ Public Property Let DPress(ByVal Value As Long)
     m_Action.DPress = Value
 End Property
 
-Public Property Get SwordFrame1() As Shape
-    Set SwordFrame1 = m_Action.SwordFrame1
-End Property
-
-Public Property Get SwordFrame2() As Shape
-    Set SwordFrame2 = m_Action.SwordFrame2
-End Property
-
-Public Property Get SwordFrame3() As Shape
-    Set SwordFrame3 = m_Action.SwordFrame3
-End Property
-
-Public Property Get ShieldSprite() As Shape
-    Set ShieldSprite = m_Action.ShieldSprite
-End Property
-
 ' Core action processing - delegates to existing functions
 Public Sub ProcessAction(ByVal keyCode As Integer)
     LoadItemsFromSheet
     Dim item As String
     Dim pressCounter As Long
+    Dim actionSlot As Long
     
     Select Case keyCode
         Case KEY_C
             item = m_Action.CItem
             pressCounter = m_Action.CPress
+            actionSlot = 1
         Case KEY_D
             item = m_Action.DItem
             pressCounter = m_Action.DPress
+            actionSlot = 2
         Case Else
             Exit Sub
     End Select
@@ -118,12 +95,12 @@ Public Sub ProcessAction(ByVal keyCode As Integer)
         pressCounter = pressCounter + 1
         Select Case item
             Case "Sword"
-                Call swordSwipe(IIf(keyCode = KEY_C, 1, 2))
+                swordSwipe actionSlot, pressCounter
             Case "Shield"
                 Call showShield
         End Select
     Else
-        If item = "Sword" And pressCounter >= 20 Then Call swordSpin
+        If item = "Sword" And pressCounter >= SWORD_SPIN_THRESHOLD Then swordSpin
         pressCounter = 0
     End If
     

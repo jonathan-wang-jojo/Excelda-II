@@ -18,24 +18,34 @@ Private m_Sprite As SpriteData
 
 ' Initialization
 Private Sub Class_Initialize()
+    InitializeState
+End Sub
+
+Private Sub InitializeState()
+    Set m_Sprite.LinkSprite = Nothing
+    m_Sprite.Top = 0
+    m_Sprite.Left = 0
     m_Sprite.Frame = 1
     m_Sprite.FrameCounter = 0
 End Sub
 
-Public Sub Initialize(ByVal screenName As String, ByVal spriteName As String)
+Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal spriteName As String = "")
+    InitializeState
+    If screenName = "" Or spriteName = "" Then Exit Sub
+
     On Error GoTo ErrorHandler
-    
+
     ' Find and set the sprite
     Set m_Sprite.LinkSprite = Sheets(screenName).Shapes(spriteName)
-    
+
     If m_Sprite.LinkSprite Is Nothing Then
         Err.Raise vbObjectError + 1, "SpriteManager.Initialize", "Sprite '" & spriteName & "' not found on " & screenName
     End If
-    
+
     ' Set initial position from sprite's actual location
     m_Sprite.Top = m_Sprite.LinkSprite.Top
     m_Sprite.Left = m_Sprite.LinkSprite.Left
-    
+
     ' Determine frame from sprite name (LinkDown1 = frame 1, LinkDown2 = frame 2, etc.)
     If InStr(spriteName, "1") > 0 Then
         m_Sprite.Frame = 1
@@ -44,7 +54,7 @@ Public Sub Initialize(ByVal screenName As String, ByVal spriteName As String)
     Else
         m_Sprite.Frame = 2  ' Default to frame 2
     End If
-    
+
     Exit Sub
 
 ErrorHandler:
@@ -56,6 +66,7 @@ End Sub
 ' Core lifecycle
 Public Sub Reset()
     On Error Resume Next
+    InitializeState
     
     Dim gs As GameState
     Set gs = GameStateInstance
@@ -114,7 +125,7 @@ Public Property Let LinkSpriteFrame(ByVal Value As Integer)
 End Property
 
 ' Core sprite operations - delegates to optimized logic
-Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, ByVal moveSpeed As Long)
+Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, ByVal moveSpeed As Long, ByVal deltaSeconds As Double)
     On Error Resume Next
     Dim gs As GameState
     Set gs = GameStateInstance
@@ -133,21 +144,76 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     baseDir = ResolveDirection(facingDir)
     
     Dim ws As Worksheet
-    Set ws = Sheets(gs.CurrentScreen)
-    Set m_Sprite.LinkSprite = ws.Shapes("Link" & baseDir & m_Sprite.Frame)
+    If Not gs Is Nothing Then
+        If gs.CurrentScreen <> "" Then
+            Set ws = Sheets(gs.CurrentScreen)
+        End If
+    End If
+    If ws Is Nothing Then
+        If Not m_Sprite.LinkSprite Is Nothing Then
+            Set ws = m_Sprite.LinkSprite.Parent
+        End If
+    End If
+    If ws Is Nothing Then Exit Sub
+    Dim shapeName As String
+    shapeName = "Link" & baseDir & m_Sprite.Frame
+    Set m_Sprite.LinkSprite = ws.Shapes(shapeName)
+    If m_Sprite.LinkSprite Is Nothing Then Exit Sub
     
     ' Sync global for legacy code compatibility
     Set LinkSprite = m_Sprite.LinkSprite
     
+    Dim expectedFrameSeconds As Double
+    If Not gs Is Nothing Then
+        expectedFrameSeconds = gs.ExpectedFrameSeconds
+    End If
+    If expectedFrameSeconds <= 0# Then expectedFrameSeconds = DEFAULT_FRAME_SECONDS
+    If deltaSeconds <= 0# Then deltaSeconds = expectedFrameSeconds
+    Dim frameScale As Double
+    frameScale = deltaSeconds / expectedFrameSeconds
+    If frameScale < 0.1 Then frameScale = 0.1
+    If frameScale > 3# Then frameScale = 3#
+    
+    Dim distance As Double
+    distance = CDbl(moveSpeed) * frameScale
+    
+    Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
+    moveUp = InStr(movementDir, "U") > 0
+    moveDown = InStr(movementDir, "D") > 0
+    If moveUp And moveDown Then
+        moveUp = False
+        moveDown = False
+    End If
+    moveLeft = InStr(movementDir, "L") > 0
+    moveRight = InStr(movementDir, "R") > 0
+    If moveLeft And moveRight Then
+        moveLeft = False
+        moveRight = False
+    End If
+    
+    Dim hasVertical As Boolean
+    Dim hasHorizontal As Boolean
+    hasVertical = moveUp Or moveDown
+    hasHorizontal = moveLeft Or moveRight
+    
+    Dim verticalStep As Double
+    Dim horizontalStep As Double
+    If hasVertical And hasHorizontal Then
+        verticalStep = distance / Sqr(2#)
+        horizontalStep = distance / Sqr(2#)
+    Else
+        verticalStep = distance
+        horizontalStep = distance
+    End If
+
     Dim newTop As Double, newLeft As Double
     newTop = m_Sprite.Top
     newLeft = m_Sprite.Left
 
-    ' Adjust position based on movement components
-    If InStr(movementDir, "U") > 0 Then newTop = newTop - moveSpeed
-    If InStr(movementDir, "D") > 0 Then newTop = newTop + moveSpeed
-    If InStr(movementDir, "L") > 0 Then newLeft = newLeft - moveSpeed
-    If InStr(movementDir, "R") > 0 Then newLeft = newLeft + moveSpeed
+    If moveUp Then newTop = newTop - verticalStep
+    If moveDown Then newTop = newTop + verticalStep
+    If moveLeft Then newLeft = newLeft - horizontalStep
+    If moveRight Then newLeft = newLeft + horizontalStep
 
     m_Sprite.Top = newTop
     m_Sprite.Left = newLeft
@@ -176,6 +242,49 @@ Public Sub UpdateVisibility()
     
     m_Sprite.LinkSprite.Visible = True
     
+    On Error GoTo 0
+End Sub
+
+Public Sub ApplyLinkBounce(ByVal bounceSpeed As Long)
+    On Error Resume Next
+    If bounceSpeed <= 0 Then Exit Sub
+    
+    Dim linkShape As Shape
+    Set linkShape = m_Sprite.LinkSprite
+    If linkShape Is Nothing Then Exit Sub
+    
+    Dim originCell As Range
+    Set originCell = linkShape.TopLeftCell
+    If originCell Is Nothing Then Exit Sub
+    
+    Dim blockingValue As Variant
+    
+    Select Case linkShape.Name
+        Case "LinkDown1", "LinkDown2"
+            blockingValue = originCell.Offset(-1, 2).Value
+            If blockingValue = "" Then
+                linkShape.Top = linkShape.Top - bounceSpeed
+            End If
+        Case "LinkUp1", "LinkUp2"
+            blockingValue = originCell.Offset(4, 2).Value
+            If blockingValue = "" Then
+                linkShape.Top = linkShape.Top + bounceSpeed
+            End If
+        Case "LinkLeft1", "LinkLeft2"
+            blockingValue = originCell.Offset(2, 4).Value
+            If blockingValue = "" Then
+                linkShape.Left = linkShape.Left + bounceSpeed
+            End If
+        Case "LinkRight1", "LinkRight2"
+            blockingValue = originCell.Offset(2, -1).Value
+            If blockingValue = "" Then
+                linkShape.Left = linkShape.Left - bounceSpeed
+            End If
+    End Select
+    
+    m_Sprite.Top = linkShape.Top
+    m_Sprite.Left = linkShape.Left
+    SyncAllLinkFrames
     On Error GoTo 0
 End Sub
 

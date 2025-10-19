@@ -14,11 +14,7 @@ Private m_BouncebackDir(1 To 4) As String
 '###################################################################################
 
 Private Sub Class_Initialize()
-    Dim i As Long
-    For i = 1 To 4
-        Set m_Enemies(i) = New Enemy
-        m_BouncebackDir(i) = ""
-    Next i
+    Initialize
 End Sub
 
 Private Sub Class_Terminate()
@@ -26,14 +22,13 @@ Private Sub Class_Terminate()
 End Sub
 
 Public Sub Reset()
-    ' Reset all enemies
-    Dim i As Long
-    For i = 1 To 4
-        If Not m_Enemies(i) Is Nothing Then
-            m_Enemies(i).Hide
-        End If
-        m_BouncebackDir(i) = ""
-    Next i
+    EnsureSlots
+    ResetSlots
+End Sub
+
+Public Sub Initialize()
+    EnsureSlots
+    ResetSlots
 End Sub
 
 Public Sub Destroy()
@@ -44,6 +39,25 @@ Public Sub Destroy()
             m_Enemies(i).Hide
             Set m_Enemies(i) = Nothing
         End If
+    Next i
+End Sub
+
+Private Sub EnsureSlots()
+    Dim i As Long
+    For i = LBound(m_Enemies) To UBound(m_Enemies)
+        If m_Enemies(i) Is Nothing Then
+            Set m_Enemies(i) = New Enemy
+        End If
+    Next i
+End Sub
+
+Private Sub ResetSlots()
+    Dim i As Long
+    For i = LBound(m_Enemies) To UBound(m_Enemies)
+        If Not m_Enemies(i) Is Nothing Then
+            m_Enemies(i).Hide
+        End If
+        m_BouncebackDir(i) = ""
     Next i
 End Sub
 
@@ -75,6 +89,36 @@ Public Sub ProcessEnemy(ByVal index As Long, ByVal linkSprite As Object)
         Call UpdateEnemy(index)
         Call CheckCollision(index, linkSprite)
     End If
+End Sub
+
+Public Sub HandleSwordHit(ByVal swordShape As Shape)
+    On Error Resume Next
+    If swordShape Is Nothing Then Exit Sub
+
+    Dim attackDir As String
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If Not gs Is Nothing Then
+        attackDir = Trim$(gs.MoveDir)
+        If attackDir = "" Then attackDir = Trim$(gs.LastDir)
+    End If
+    If attackDir = "" Then attackDir = "D"
+
+    Dim i As Long
+    For i = LBound(m_Enemies) To UBound(m_Enemies)
+        If Not m_Enemies(i) Is Nothing Then
+            If m_Enemies(i).IsActive Then
+                Dim enemyShape As Shape
+                Set enemyShape = m_Enemies(i).GetShape()
+                If Not enemyShape Is Nothing Then
+                    If ShapesOverlap(swordShape, enemyShape) Then
+                        HitEnemy i, attackDir
+                    End If
+                End If
+            End If
+        End If
+    Next i
+    On Error GoTo 0
 End Sub
 
 Private Sub UpdateEnemy(ByVal index As Long)
@@ -262,11 +306,30 @@ Private Sub CheckCollision(ByVal index As Long, ByVal linkSprite As Object)
             Call PushEnemy(index)
         Else
             ' Hit Link
-            RNDBounceback = Sheets(SHEET_DATA).Range("C23").Value
-            CollidedWith = enemy.Name
+            Dim gs As GameState
+            Set gs = GameStateInstance()
+            If Not gs Is Nothing Then
+                gs.RNDBounceback = CLng(Val(Sheets(SHEET_DATA).Range("C23").Value))
+            End If
         End If
     End If
 End Sub
+
+Private Function ShapesOverlap(ByVal firstShape As Shape, ByVal secondShape As Shape) As Boolean
+    If firstShape Is Nothing Then Exit Function
+    If secondShape Is Nothing Then Exit Function
+
+    Dim horizontalOverlap As Boolean
+    Dim verticalOverlap As Boolean
+
+    horizontalOverlap = (firstShape.Left < secondShape.Left + secondShape.Width) And _
+                        (secondShape.Left < firstShape.Left + firstShape.Width)
+
+    verticalOverlap = (firstShape.Top < secondShape.Top + secondShape.Height) And _
+                      (secondShape.Top < firstShape.Top + firstShape.Height)
+
+    ShapesOverlap = horizontalOverlap And verticalOverlap
+End Function
 
 Public Sub HitEnemy(ByVal index As Long, ByVal Direction As String)
     ' Apply hit to enemy

@@ -12,6 +12,14 @@ Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 '#                              SPECIAL EVENT FLOW                                #
 '###################################################################################
 
+Private Sub Class_Initialize()
+    Initialize
+End Sub
+
+Public Sub Initialize()
+    ' No persistent state to seed yet; defined for lifecycle consistency.
+End Sub
+
 Public Sub Trigger(ByVal eventCode As String)
     Dim eventId As String
     eventId = ExtractEventId(eventCode)

@@ -1,19 +1,17 @@
 Option Explicit
 
-' Global variables for legacy compatibility
-Public LinkSprite As Object
-Public currentScreen As String
-Public mySub As String
-
 ' Game constants
 Public Const GAME_VERSION As String = "2.0.0"
 Public Const TICK_RATE As Long = 60
-Public Const DEFAULT_GAME_SPEED As Long = 30
-Public Const MIN_GAME_SPEED As Long = 15
+Public Const DEFAULT_GAME_SPEED As Long = 16
+Public Const MIN_GAME_SPEED As Long = 8
 Public Const MAX_GAME_SPEED As Long = 200
-Public Const DEFAULT_LINK_SPEED As Long = 6
+Public Const DEFAULT_LINK_SPEED As Long = 8
 Public Const MIN_LINK_SPEED As Long = 2
 Public Const MAX_LINK_SPEED As Long = 20
+Public Const DEFAULT_FRAME_SECONDS As Double = DEFAULT_GAME_SPEED / 1000#
+Public Const MAX_FRAME_DELTA_SECONDS As Double = 0.25
+Public Const MIN_FRAME_DELTA_SECONDS As Double = 0.001
 
 ' Direction enums
 Public Enum Direction
@@ -62,9 +60,11 @@ Public Const RANGE_ANIM_COUNTER As String = "C20"
 Public Const RANGE_C_ITEM As String = "C26"
 Public Const RANGE_D_ITEM As String = "C27"
 Public Const RANGE_FALLING As String = "C9"
+Public Const RANGE_FALL_SEQUENCE As String = "C10"
 Public Const RANGE_ACTION_C As String = "C24"
 Public Const RANGE_ACTION_D As String = "C25"
 Public Const RANGE_SHIELD_STATE As String = "C28"
+Public Const RANGE_SCROLL_COOLDOWN As String = "C6"
 
 ' Scroll and Screen Management Ranges
 Public Const RANGE_CURRENT_CELL As String = "C8"

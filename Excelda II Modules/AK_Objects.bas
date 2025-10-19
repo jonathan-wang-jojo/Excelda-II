@@ -1,8 +1,11 @@
-'    manager.ResetObjects objectType
 'Attribute VB_Name = "AK_Objects"
 Option Explicit
 
-' Compatibility wrapper – delegates to ObjectManager
+'===================================================================================
+' Module: AK_Objects
+' Purpose: Legacy compatibility wrappers that delegate to ObjectManager while
+'          preserving historical macro signatures used by screen setup sheets.
+'===================================================================================
 
 Public Sub swordHitBush(ByVal swordImage As Shape)
     Dim manager As ObjectManager

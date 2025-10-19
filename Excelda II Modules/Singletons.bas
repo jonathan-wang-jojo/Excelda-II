@@ -22,6 +22,7 @@ Private m_SpecialEventManager As SpecialEventManager
 Public Function GameStateInstance() As GameState
     If m_GameState Is Nothing Then
         Set m_GameState = New GameState
+        m_GameState.Initialize
     End If
     Set GameStateInstance = m_GameState
 End Function
@@ -30,6 +31,7 @@ End Function
 Public Function ActionManagerInstance() As ActionManager
     If m_ActionManager Is Nothing Then
         Set m_ActionManager = New ActionManager
+        m_ActionManager.Initialize
     End If
     Set ActionManagerInstance = m_ActionManager
 End Function
@@ -38,6 +40,7 @@ End Function
 Public Function EnemyManagerInstance() As EnemyManager
     If m_EnemyManager Is Nothing Then
         Set m_EnemyManager = New EnemyManager
+        m_EnemyManager.Initialize
     End If
     Set EnemyManagerInstance = m_EnemyManager
 End Function
@@ -46,6 +49,7 @@ End Function
 Public Function SpriteManagerInstance() As SpriteManager
     If m_SpriteManager Is Nothing Then
         Set m_SpriteManager = New SpriteManager
+        m_SpriteManager.Initialize
     End If
     Set SpriteManagerInstance = m_SpriteManager
 End Function
@@ -54,6 +58,7 @@ End Function
 Public Function FriendlyManagerInstance() As FriendlyManager
     If m_FriendlyManager Is Nothing Then
         Set m_FriendlyManager = New FriendlyManager
+        m_FriendlyManager.Initialize
     End If
     Set FriendlyManagerInstance = m_FriendlyManager
 End Function
@@ -62,6 +67,7 @@ End Function
 Public Function ObjectManagerInstance() As ObjectManager
     If m_ObjectManager Is Nothing Then
         Set m_ObjectManager = New ObjectManager
+        m_ObjectManager.Initialize
     End If
     Set ObjectManagerInstance = m_ObjectManager
 End Function
@@ -70,6 +76,7 @@ End Function
 Public Function SpecialEventManagerInstance() As SpecialEventManager
     If m_SpecialEventManager Is Nothing Then
         Set m_SpecialEventManager = New SpecialEventManager
+        m_SpecialEventManager.Initialize
     End If
     Set SpecialEventManagerInstance = m_SpecialEventManager
 End Function

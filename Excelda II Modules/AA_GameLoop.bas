@@ -85,17 +85,15 @@ Private Sub StartGame()
     m_GameState.CurrentScreen = screen
     m_GameState.MoveDir = direction
     
-    ' Sync legacy globals
-    Set LinkSprite = m_SpriteManager.LinkSprite
-    CurrentScreen = screen
-    m_GameState.LinkCellAddress = LinkSprite.TopLeftCell.Address
+    ' Sync state
+    m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
     Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = m_GameState.LinkCellAddress
     
     ' Align view and run screen setup
     Call alignScreen
     On Error Resume Next
     Call calculateScreenLocation("", direction)
-    If CurrentScreen <> "" Then Application.Run CurrentScreen
+    If m_GameState.CurrentScreen <> "" Then Application.Run m_GameState.CurrentScreen
     On Error GoTo ErrorHandler
     Application.ScreenUpdating = False
     
@@ -116,10 +114,12 @@ Private Sub UpdateLoop()
     Do
         ' Quit check
         If IsQuitRequested() Then Exit Do
+        Dim deltaSeconds As Double
+        deltaSeconds = m_GameState.BeginFrame()
         
         ' Update game state
         m_GameState.RefreshFromDataSheet
-        Call Update
+        Call Update(deltaSeconds)
         Application.ScreenUpdating = True
         DoEvents
         If IsQuitRequested() Then Exit Do
@@ -155,7 +155,7 @@ ErrorHandler:
     Sheets(SHEET_TITLE).Activate
 End Sub
 
-Private Sub Update()
+Private Sub Update(ByVal deltaSeconds As Double)
     ' Core game update - called every frame
     
     ' Update timers
@@ -164,9 +164,11 @@ Private Sub Update()
     End If
     
     ' Handle collision bounce
-    If m_GameState.RNDBounceback <> "" Then
-        Call BounceBack(m_SpriteManager.LinkSprite, ActiveSheet.Shapes(m_GameState.CollidedWith))
-        m_GameState.RNDBounceback = ""
+    If m_GameState.RNDBounceback > 0 Then
+        Dim bounceSpeed As Long
+        bounceSpeed = m_GameState.RNDBounceback
+        m_SpriteManager.ApplyLinkBounce bounceSpeed
+        m_GameState.RNDBounceback = 0
     End If
     
     ' Check falling state
@@ -176,7 +178,7 @@ Private Sub Update()
     Call HandleInput
     Call HandleTriggers
     Call HandleEnemies
-    Call UpdateSprites
+    Call UpdateSprites(deltaSeconds)
 End Sub
 
 Private Sub HandleInput()
@@ -185,14 +187,28 @@ Private Sub HandleInput()
     newDir = ""
     Dim currentCell As Range
     On Error Resume Next
-    Set currentCell = LinkSprite.TopLeftCell
+    Set currentCell = m_SpriteManager.LinkSprite.TopLeftCell
     On Error GoTo 0
     
-    ' Check movement keys
-    If IsKeyPressed(KEY_UP) Then newDir = newDir & "U"
-    If IsKeyPressed(KEY_DOWN) Then newDir = newDir & "D"
-    If IsKeyPressed(KEY_LEFT) Then newDir = newDir & "L"
-    If IsKeyPressed(KEY_RIGHT) Then newDir = newDir & "R"
+    Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
+    moveUp = IsKeyPressed(KEY_UP)
+    moveDown = IsKeyPressed(KEY_DOWN)
+    moveLeft = IsKeyPressed(KEY_LEFT)
+    moveRight = IsKeyPressed(KEY_RIGHT)
+    
+    If moveUp And moveDown Then
+        moveUp = False
+        moveDown = False
+    End If
+    If moveLeft And moveRight Then
+        moveLeft = False
+        moveRight = False
+    End If
+    
+    If moveUp Then newDir = newDir & "U"
+    If moveDown Then newDir = newDir & "D"
+    If moveLeft Then newDir = newDir & "L"
+    If moveRight Then newDir = newDir & "R"
     
     ' Block movement if collision detected
     If newDir <> "" And Not currentCell Is Nothing Then
@@ -208,7 +224,7 @@ Private Sub HandleInput()
     m_ActionManager.ProcessAction KEY_D
 End Sub
 
-Private Sub UpdateSprites()
+Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     ' Update sprite frames and positions
     Dim movementDir As String
     movementDir = m_GameState.MoveDir
@@ -218,7 +234,7 @@ Private Sub UpdateSprites()
     Else
         facingDir = movementDir
     End If
-    m_SpriteManager.UpdateFrame movementDir, facingDir, m_GameState.MoveSpeed
+    m_SpriteManager.UpdateFrame movementDir, facingDir, m_GameState.MoveSpeed, deltaSeconds
     m_SpriteManager.UpdatePosition
     m_SpriteManager.UpdateVisibility
     On Error Resume Next
@@ -230,9 +246,6 @@ Private Sub UpdateSprites()
     End If
     On Error GoTo 0
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = ""
-    
-    ' Sync legacy global
-    Set LinkSprite = m_SpriteManager.LinkSprite
 End Sub
 
 Private Function DirectionBlocked(ByVal direction As String, ByVal baseCell As Range) As Boolean
@@ -322,7 +335,7 @@ Private Sub HandleTriggers()
     Dim code As String
 
     Set mapSheet = Sheets(m_GameState.CurrentScreen)
-    Set linkCell = LinkSprite.TopLeftCell
+    Set linkCell = m_SpriteManager.LinkSprite.TopLeftCell
     If linkCell Is Nothing Then Exit Sub
     Set triggerCell = mapSheet.Range(linkCell.Address).Offset(3, 2)
 
@@ -330,7 +343,7 @@ Private Sub HandleTriggers()
     If Len(code) < 8 Then Exit Sub
     
     ' Update state
-    m_GameState.LinkCellAddress = LinkSprite.TopLeftCell.Address
+    m_GameState.LinkCellAddress = linkCell.Address
     m_GameState.CodeCell = code
     Sheets(SHEET_DATA).Range("C18").Value = m_GameState.LinkCellAddress
     
@@ -510,7 +523,6 @@ Private Sub RelocateToSimpleLocation(ByVal location As String)
     m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
     m_SpriteManager.LinkSpriteLeft = targetCell.Left
     m_SpriteManager.LinkSpriteTop = targetCell.Top
-    Set LinkSprite = m_SpriteManager.LinkSprite
 
     gs.LinkCellAddress = targetCell.Address
     dataSheet.Range(RANGE_CURRENT_CELL).Value = gs.LinkCellAddress

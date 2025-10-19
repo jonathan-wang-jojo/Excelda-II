@@ -12,9 +12,7 @@ Public Sub moveStillFollow(ByVal slot As Long)
     If friendlyShape Is Nothing Then Exit Sub
 
     Dim linkShape As Shape
-    On Error Resume Next
-    Set linkShape = LinkSprite
-    On Error GoTo 0
+    Set linkShape = SpriteManagerInstance().LinkSprite
     If linkShape Is Nothing Then Exit Sub
 
     Dim desiredDir As String

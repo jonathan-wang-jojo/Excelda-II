@@ -15,6 +15,9 @@ Sub myScroll(ByVal scrollDir As String)
     
     Dim linkDirection As String
     linkDirection = gs.MoveDir
+    If linkDirection = "" Then
+        linkDirection = gs.LastDir
+    End If
     
     ' Store previous cell for rescroll detection
     Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_CELL).Value = gs.LinkCellAddress
@@ -41,13 +44,14 @@ Sub myScroll(ByVal scrollDir As String)
     
     ' Run screen setup macro
     On Error GoTo ScreenSetupError
-    mySub = CurrentScreen 'global
-    Application.Run mySub
+    Dim setupMacro As String
+    setupMacro = gs.CurrentScreen
+    If setupMacro <> "" Then Application.Run setupMacro
     
     Exit Sub
     
 ScreenSetupError:
-    MsgBox "Screen setup macro not found: " & mySub, vbCritical, "Screen Setup Error"
+    MsgBox "Screen setup macro not found: " & setupMacro, vbCritical, "Screen Setup Error"
     Exit Sub
     
 ErrorHandler:

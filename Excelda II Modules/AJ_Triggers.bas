@@ -17,9 +17,6 @@ Option Explicit
 '   A1      = Cell address for enemy spawn
 '###################################################################################
 
-' Module-level variables
-Public TriggerCel As String
-
 '###################################################################################
 '                              ENEMY TRIGGERS
 '###################################################################################
@@ -46,7 +43,11 @@ Sub EnemyTrigger(triggerCode As String)
     slotNumber = CLng(Mid$(triggerCode, 11, 2))  ' 02
     cellAddress = Mid$(triggerCode, 14)          ' R484 (skip direction at pos 13)
     
-    TriggerCel = cellAddress
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If Not gs Is Nothing Then
+        gs.TriggerCellAddress = cellAddress
+    End If
     
     ' Map enemy code to name
     Dim enemyName As String
@@ -101,54 +102,6 @@ Private Function FindEnemyDataRow(enemyType As String) As Long
     End Select
 End Function
 
-Sub BounceBack(LinkImage, enemyImage)
-    ' Bounce Link back when hit by enemy
-    On Error Resume Next
-    
-    Dim myBounceBackSpeed As Long
-    Dim moveCellValue As String
-    Dim currentDir As String
-    
-    ' Get bounce speed and direction from game state
-    myBounceBackSpeed = Sheets(SHEET_DATA).Range("C23").Value
-    currentDir = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
-    
-    ' Use last direction if no current movement
-    If currentDir = "" Then
-        Dim gs As GameState
-        Set gs = GameStateInstance()
-        currentDir = gs.LastDir
-    End If
-    
-    ' Bounce back based on Link's sprite direction
-    Select Case LinkSprite.Name
-        Case "LinkDown1", "LinkDown2"
-            moveCellValue = Range(LinkImage.TopLeftCell.Address).Offset(-1, 2).Value
-            If moveCellValue = "" Then
-                LinkImage.Top = LinkImage.Top - myBounceBackSpeed
-            End If
-        
-        Case "LinkUp1", "LinkUp2"
-            moveCellValue = Range(LinkImage.TopLeftCell.Address).Offset(4, 2).Value
-            If moveCellValue = "" Then
-                LinkImage.Top = LinkImage.Top + myBounceBackSpeed
-            End If
-        
-        Case "LinkLeft1", "LinkLeft2"
-            moveCellValue = Range(LinkImage.TopLeftCell.Address).Offset(2, 4).Value
-            If moveCellValue = "" Then
-                LinkImage.Left = LinkImage.Left + myBounceBackSpeed
-            End If
-        
-        Case "LinkRight1", "LinkRight2"
-            moveCellValue = Range(LinkImage.TopLeftCell.Address).Offset(2, -1).Value
-            If moveCellValue = "" Then
-                LinkImage.Left = LinkImage.Left - myBounceBackSpeed
-            End If
-    End Select
-End Sub
-
-
 '###################################################################################
 '                              ENEMY RESET FUNCTIONS
 '###################################################################################
@@ -162,72 +115,4 @@ Sub ResetAllEnemies()
     If Not manager Is Nothing Then
         manager.Reset
     End If
-End Sub
-
-
-'###################################################################################
-'                              SWORD HIT DETECTION
-'###################################################################################
-
-Sub didSwordHit(mySwordImage As Shape, myEnemyImage As String)
-    ' Check if sword hit enemy
-    On Error Resume Next
-
-    If myEnemyImage = "" Then Exit Sub
-
-    Dim swordImage As Shape
-    Dim enemyImage As Shape
-    Dim overlap As Boolean, sideOverlap As Boolean, topOverlap As Boolean
-
-    Set swordImage = mySwordImage
-    Set enemyImage = ActiveSheet.Shapes(myEnemyImage)
-
-    ' Check side overlap
-    If swordImage.Left < enemyImage.Left And enemyImage.Left <= swordImage.Left + swordImage.Width Then
-        sideOverlap = True
-    ElseIf enemyImage.Left < swordImage.Left And swordImage.Left <= enemyImage.Left + enemyImage.Width Then
-        sideOverlap = True
-    End If
-
-    ' Check top overlap
-    If swordImage.Top < enemyImage.Top And enemyImage.Top <= swordImage.Top + swordImage.Height Then
-        topOverlap = True
-    ElseIf enemyImage.Top < swordImage.Top And swordImage.Top <= enemyImage.Top + enemyImage.Height Then
-        topOverlap = True
-    End If
-
-    overlap = (sideOverlap And topOverlap)
-
-    If overlap Then
-        Call HitEnemyByName(myEnemyImage)
-    End If
-End Sub
-
-Private Sub HitEnemyByName(enemyName As String)
-    ' Apply sword hit to enemy by finding which slot it's in
-    On Error Resume Next
-    
-    ' Get direction from game state
-    Dim gs As GameState
-    Set gs = GameStateInstance()
-    
-    Dim myDir As String
-    myDir = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
-    If myDir = "" Then myDir = gs.LastDir
-    
-    Dim manager As EnemyManager
-    Set manager = EnemyManagerInstance()
-    
-    ' Find which enemy slot this is
-    Dim i As Long
-    For i = 1 To 4
-        If manager.IsActive(i) Then
-            Dim enemy As enemy
-            Set enemy = manager.enemy(i)
-            If enemy.Frame1 = enemyName Or enemy.Frame2 = enemyName Then
-                manager.HitEnemy i, myDir
-                Exit For
-            End If
-        End If
-    Next i
 End Sub

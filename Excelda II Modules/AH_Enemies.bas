@@ -112,15 +112,25 @@ Public Sub ShowEnemy(enemyType As String, slotNumber As Long)
     
     Dim manager As EnemyManager
     Set manager = EnemyManagerInstance()
+
+    Dim dataRow As Long
+    dataRow = GetEnemyRow(enemyType, slotNumber)
+    If dataRow = 0 Then Exit Sub
+
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    Dim anchorAddress As String
+    If Not gs Is Nothing Then anchorAddress = Trim$(gs.TriggerCellAddress)
+    If anchorAddress = "" Then Exit Sub
     
     ' Spawn through manager
-    manager.SpawnEnemy enemyType, slotNumber, dataRow, TriggerCel
+    manager.SpawnEnemy enemyType, slotNumber, dataRow, anchorAddress
     
     ' Sync legacy globals for backward compatibility
     Call SyncEnemyToGlobals(slotNumber)
 End Sub
 
-Public Sub HideEnemy(enemyType As String, slotNumber As Long, dataRow As Long)
+Public Sub HideEnemy(enemyType As String, slotNumber As Long)
     ' Universal enemy despawner
     On Error Resume Next
     

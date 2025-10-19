@@ -11,10 +11,11 @@ End Type
 Private m_Friendlies(1 To 4) As FriendlySlot
 
 Private Sub Class_Initialize()
-    Dim i As Long
-    For i = 1 To 4
-        ClearFriendly i
-    Next i
+    InitializeState
+End Sub
+
+Public Sub Initialize()
+    InitializeState
 End Sub
 
 Public Sub Reset()
@@ -30,6 +31,14 @@ End Sub
 
 Public Sub Destroy()
     Reset
+    InitializeState
+End Sub
+
+Private Sub InitializeState()
+    Dim i As Long
+    For i = 1 To 4
+        ClearFriendly i
+    Next i
 End Sub
 
 Public Sub SpawnFriendly(ByVal slot As Long, ByVal baseName As String, ByVal dataRow As Long, ByVal anchorCell As Range, Optional ByVal direction As String = "D")

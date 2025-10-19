@@ -57,8 +57,27 @@ Private Sub ResetEnemySlot(ByVal slot As Long, ByVal dataRow As Long)
 End Sub
 
 Private Function TriggerAnchorCell() As Range
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Function
+
+    Dim address As String
+    address = Trim$(gs.TriggerCellAddress)
+    If address = "" Then Exit Function
+
+    Dim hostSheet As Worksheet
     On Error Resume Next
-    Set TriggerAnchorCell = Range(TriggerCel)
+    If gs.CurrentScreen <> "" Then
+        Set hostSheet = Sheets(gs.CurrentScreen)
+    Else
+        Set hostSheet = ActiveSheet
+    End If
+
+    If hostSheet Is Nothing Then
+        Set TriggerAnchorCell = Nothing
+    Else
+        Set TriggerAnchorCell = hostSheet.Range(address)
+    End If
     If Err.Number <> 0 Then
         Err.Clear
         Set TriggerAnchorCell = Nothing
