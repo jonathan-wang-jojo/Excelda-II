@@ -10,7 +10,7 @@ Private Type GameData
     IsPaused As Boolean
     MoveDir As String
     LastDir As String
-    MoveSpeed As Long
+    MoveSpeed As Double
     IsFalling As Boolean
     LinkCellAddress As String
     CodeCell As String
@@ -102,11 +102,11 @@ Public Property Get LastDir() As String
     LastDir = m_Game.LastDir
 End Property
 
-Public Property Get MoveSpeed() As Long
+Public Property Get MoveSpeed() As Double
     MoveSpeed = m_Game.MoveSpeed
 End Property
 
-Public Property Let MoveSpeed(ByVal Value As Long)
+Public Property Let MoveSpeed(ByVal Value As Double)
     If Value < MIN_LINK_SPEED Then
         m_Game.MoveSpeed = DEFAULT_LINK_SPEED
     ElseIf Value > MAX_LINK_SPEED Then
@@ -211,10 +211,10 @@ Private Function ReadGameSpeed() As Long
     On Error GoTo 0
 End Function
 
-Private Function ReadMoveSpeed() As Long
+Private Function ReadMoveSpeed() As Double
     On Error Resume Next
-    Dim value As Long
-    value = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value))
+    Dim value As Double
+    value = CDbl(Val(Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value))
     If value < MIN_LINK_SPEED Then value = DEFAULT_LINK_SPEED
     If value > MAX_LINK_SPEED Then value = MAX_LINK_SPEED
     ReadMoveSpeed = value

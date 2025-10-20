@@ -11,7 +11,10 @@ Private Type SpriteData
     Top As Double
     Left As Double
     Frame As Integer
-    FrameCounter As Long
+    StepAccumulator As Double
+    LastFrameShape As String
+    PendingFrameName As String
+    PendingHideName As String
 End Type
 
 Private m_Sprite As SpriteData
@@ -30,7 +33,10 @@ Private Sub ResetState()
     m_Sprite.Top = 0
     m_Sprite.Left = 0
     m_Sprite.Frame = 1
-    m_Sprite.FrameCounter = 0
+    m_Sprite.StepAccumulator = 0
+    m_Sprite.LastFrameShape = ""
+    m_Sprite.PendingFrameName = ""
+    m_Sprite.PendingHideName = ""
 End Sub
 
 Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal spriteName As String = "")
@@ -59,6 +65,12 @@ Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal s
         m_Sprite.Frame = 2  ' Default to frame 2
     End If
 
+    m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
+    m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
+    ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
+    m_Sprite.PendingFrameName = ""
+    m_Sprite.PendingHideName = ""
+
     Exit Sub
 
 ErrorHandler:
@@ -83,7 +95,12 @@ Public Sub Reset()
             m_Sprite.Top = m_Sprite.LinkSprite.Top
             m_Sprite.Left = m_Sprite.LinkSprite.Left
             m_Sprite.Frame = 1
-            m_Sprite.FrameCounter = 0
+            m_Sprite.StepAccumulator = 0
+            m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
+            m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
+            ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
+            m_Sprite.PendingFrameName = ""
+            m_Sprite.PendingHideName = ""
         End If
     End If
     
@@ -125,59 +142,29 @@ Public Property Let LinkSpriteFrame(ByVal Value As Integer)
 End Property
 
 ' Core sprite operations - delegates to optimized logic
-Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, ByVal moveSpeed As Long, ByVal deltaSeconds As Double)
+Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, ByVal moveSpeed As Double, ByVal deltaSeconds As Double)
     On Error Resume Next
     Dim gs As GameState
     Set gs = GameStateInstance
 
-    m_Sprite.FrameCounter = (m_Sprite.FrameCounter + 1) Mod 6
-    m_Sprite.Frame = IIf(m_Sprite.FrameCounter < 3, 1, 2)
-    
-    If facingDir = "" Then
-        If Not gs Is Nothing Then
-            facingDir = gs.LastDir
-        Else
-            facingDir = ""
-        End If
-    End If
-    Dim baseDir As String
-    baseDir = ResolveDirection(facingDir)
-    
-    Dim ws As Worksheet
-    If Not gs Is Nothing Then
-        If gs.CurrentScreen <> "" Then
-            Set ws = Sheets(gs.CurrentScreen)
-        End If
-    End If
-    If ws Is Nothing Then
-        If Not m_Sprite.LinkSprite Is Nothing Then
-            Set ws = m_Sprite.LinkSprite.Parent
-        End If
-    End If
-    If ws Is Nothing Then Exit Sub
-    Dim shapeName As String
-    shapeName = "Link" & baseDir & m_Sprite.Frame
-    Set m_Sprite.LinkSprite = ShapeIfExists(ws, shapeName)
-    If m_Sprite.LinkSprite Is Nothing Then Exit Sub
-    ApplyLinkVisibility ws
-    
-    ' Sync global for legacy code compatibility
-    Set LinkSprite = m_Sprite.LinkSprite
-    
     Dim expectedFrameSeconds As Double
     If Not gs Is Nothing Then
         expectedFrameSeconds = gs.ExpectedFrameSeconds
     End If
     If expectedFrameSeconds <= 0# Then expectedFrameSeconds = DEFAULT_FRAME_SECONDS
-    If deltaSeconds <= 0# Then deltaSeconds = expectedFrameSeconds
+
+    Dim effectiveDelta As Double
+    effectiveDelta = deltaSeconds
+    If effectiveDelta <= 0# Then effectiveDelta = expectedFrameSeconds
+
     Dim frameScale As Double
-    frameScale = deltaSeconds / expectedFrameSeconds
-    If frameScale < 0.1 Then frameScale = 0.1
-    If frameScale > 3# Then frameScale = 3#
-    
+    frameScale = effectiveDelta / expectedFrameSeconds
+    If frameScale < 0.25 Then frameScale = 0.25
+    If frameScale > 2# Then frameScale = 2#
+
     Dim distance As Double
-    distance = CDbl(moveSpeed) * frameScale
-    
+    distance = moveSpeed * frameScale
+
     Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
     moveUp = InStr(movementDir, "U") > 0
     moveDown = InStr(movementDir, "D") > 0
@@ -191,12 +178,12 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
         moveLeft = False
         moveRight = False
     End If
-    
+
     Dim hasVertical As Boolean
     Dim hasHorizontal As Boolean
     hasVertical = moveUp Or moveDown
     hasHorizontal = moveLeft Or moveRight
-    
+
     Dim verticalStep As Double
     Dim horizontalStep As Double
     If hasVertical And hasHorizontal Then
@@ -207,23 +194,97 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
         horizontalStep = distance
     End If
 
-    Dim newTop As Double, newLeft As Double
-    newTop = m_Sprite.Top
-    newLeft = m_Sprite.Left
+    Dim oldTop As Double
+    Dim oldLeft As Double
+    oldTop = m_Sprite.Top
+    oldLeft = m_Sprite.Left
+
+    Dim newTop As Double
+    Dim newLeft As Double
+    newTop = oldTop
+    newLeft = oldLeft
 
     If moveUp Then newTop = newTop - verticalStep
     If moveDown Then newTop = newTop + verticalStep
     If moveLeft Then newLeft = newLeft - horizontalStep
     If moveRight Then newLeft = newLeft + horizontalStep
 
+    Dim moveDelta As Double
+    moveDelta = Sqr((newLeft - oldLeft) ^ 2 + (newTop - oldTop) ^ 2)
+
+    If Len(movementDir) = 0 Or moveDelta <= 0.0001 Then
+        If m_Sprite.Frame <> 1 Then m_Sprite.Frame = 1
+        m_Sprite.StepAccumulator = 0#
+    Else
+        Dim thresholdDistance As Double
+        If LINK_STEP_FRAME_DISTANCE > 0# Then
+            thresholdDistance = LINK_STEP_FRAME_DISTANCE
+        Else
+            thresholdDistance = moveSpeed * LINK_ANIM_FRAME_SECONDS
+            If thresholdDistance <= 0# Then thresholdDistance = 6#
+        End If
+        m_Sprite.StepAccumulator = m_Sprite.StepAccumulator + moveDelta
+        If m_Sprite.StepAccumulator >= thresholdDistance Then
+            m_Sprite.StepAccumulator = m_Sprite.StepAccumulator - thresholdDistance
+            If m_Sprite.StepAccumulator > thresholdDistance Then
+                m_Sprite.StepAccumulator = thresholdDistance
+            End If
+            If m_Sprite.Frame = 1 Then
+                m_Sprite.Frame = 2
+            Else
+                m_Sprite.Frame = 1
+            End If
+        End If
+    End If
+
     m_Sprite.Top = newTop
     m_Sprite.Left = newLeft
-    
+
+    If facingDir = "" Then
+        If Not gs Is Nothing Then
+            facingDir = gs.LastDir
+        Else
+            facingDir = ""
+        End If
+    End If
+    Dim baseDir As String
+    baseDir = ResolveDirection(facingDir)
+
+    Dim ws As Worksheet
+    If Not gs Is Nothing Then
+        If gs.CurrentScreen <> "" Then
+            Set ws = Sheets(gs.CurrentScreen)
+        End If
+    End If
+    If ws Is Nothing Then
+        If Not m_Sprite.LinkSprite Is Nothing Then
+            Set ws = m_Sprite.LinkSprite.Parent
+        End If
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    Dim shapeName As String
+    shapeName = "Link" & baseDir & m_Sprite.Frame
+
+    Dim activeShape As Shape
+    Set activeShape = ShapeIfExists(ws, shapeName)
+    If activeShape Is Nothing Then Exit Sub
+
+    Set m_Sprite.LinkSprite = activeShape
+    m_Sprite.PendingFrameName = activeShape.Name
+
+    ' Sync global for legacy code compatibility
+    Set LinkSprite = m_Sprite.LinkSprite
+
     On Error GoTo 0
 End Sub
 
 Public Sub UpdatePosition()
     On Error Resume Next
+    If m_Sprite.LinkSprite Is Nothing Then
+        On Error GoTo 0
+        Exit Sub
+    End If
     m_Sprite.LinkSprite.Top = m_Sprite.Top
     m_Sprite.LinkSprite.Left = m_Sprite.Left
     SyncAllLinkFrames
@@ -245,7 +306,49 @@ Public Sub UpdateVisibility()
     End If
     If wsGame Is Nothing Then Exit Sub
 
-    ApplyLinkVisibility wsGame
+    Dim hideShape As Shape
+    If m_Sprite.PendingHideName <> "" Then
+        Set hideShape = ShapeIfExists(wsGame, m_Sprite.PendingHideName)
+        If Not hideShape Is Nothing Then
+            If hideShape.Visible <> msoFalse Then hideShape.Visible = msoFalse
+        End If
+        m_Sprite.PendingHideName = ""
+    End If
+
+    Dim targetName As String
+    Dim previousName As String
+    Dim needsFullRefresh As Boolean
+
+    targetName = m_Sprite.PendingFrameName
+
+    If targetName = "" Then
+        If m_Sprite.LastFrameShape = "" Then
+            If m_Sprite.LinkSprite Is Nothing Then Exit Sub
+            targetName = m_Sprite.LinkSprite.Name
+            needsFullRefresh = True
+        Else
+            Exit Sub
+        End If
+    Else
+        If m_Sprite.LastFrameShape = "" Then
+            needsFullRefresh = True
+        ElseIf m_Sprite.LastFrameShape <> targetName Then
+            previousName = m_Sprite.LastFrameShape
+        Else
+            m_Sprite.PendingFrameName = ""
+            Exit Sub
+        End If
+    End If
+
+    ApplyLinkVisibility wsGame, targetName, "", needsFullRefresh
+
+    m_Sprite.LastFrameShape = targetName
+    m_Sprite.PendingFrameName = ""
+    If needsFullRefresh Then
+        m_Sprite.PendingHideName = ""
+    ElseIf previousName <> "" Then
+        m_Sprite.PendingHideName = previousName
+    End If
 
     On Error GoTo 0
 End Sub
@@ -380,15 +483,32 @@ Private Function ShapeIfExists(ByVal ws As Worksheet, ByVal shapeName As String)
     On Error GoTo 0
 End Function
 
-Private Sub ApplyLinkVisibility(ByVal ws As Worksheet)
-    Dim frameName As Variant
-    For Each frameName In LinkFrameNames()
-        Dim frameShape As Shape
-        Set frameShape = ShapeIfExists(ws, CStr(frameName))
+Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As String, Optional ByVal previousName As String = "", Optional ByVal fullRefresh As Boolean = False)
+    If activeName = "" Then Exit Sub
+
+    Dim activeShape As Shape
+    Set activeShape = ShapeIfExists(ws, activeName)
+    If Not activeShape Is Nothing Then
+        If activeShape.Visible <> msoTrue Then activeShape.Visible = msoTrue
+    End If
+
+    Dim frameShape As Shape
+    If previousName <> "" And previousName <> activeName Then
+        Set frameShape = ShapeIfExists(ws, previousName)
         If Not frameShape Is Nothing Then
-            Dim shouldShow As Boolean
-            shouldShow = Not m_Sprite.LinkSprite Is Nothing And frameShape.Name = m_Sprite.LinkSprite.Name
-            frameShape.Visible = shouldShow
+            If frameShape.Visible <> msoFalse Then frameShape.Visible = msoFalse
         End If
-    Next frameName
+    End If
+
+    If fullRefresh Then
+        Dim frameName As Variant
+        For Each frameName In LinkFrameNames()
+            If CStr(frameName) <> activeName And CStr(frameName) <> previousName Then
+                Set frameShape = ShapeIfExists(ws, CStr(frameName))
+                If Not frameShape Is Nothing Then
+                    If frameShape.Visible <> msoFalse Then frameShape.Visible = msoFalse
+                End If
+            End If
+        Next frameName
+    End If
 End Sub

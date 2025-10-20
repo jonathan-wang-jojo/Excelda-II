@@ -175,13 +175,13 @@ Private Sub Update(ByVal deltaSeconds As Double)
     m_GameState.IsFalling = (Sheets(SHEET_DATA).Range(RANGE_FALLING).Value = "Y")
     
     ' Handle input and update
-    Call HandleInput
+    Call HandleInput(deltaSeconds)
     Call HandleTriggers
     Call HandleEnemies
     Call UpdateSprites(deltaSeconds)
 End Sub
 
-Private Sub HandleInput()
+Private Sub HandleInput(ByVal deltaSeconds As Double)
     ' Process player input
     Dim newDir As String
     newDir = ""
@@ -189,6 +189,14 @@ Private Sub HandleInput()
     On Error Resume Next
     Set currentCell = m_SpriteManager.LinkSprite.TopLeftCell
     On Error GoTo 0
+
+    Static releaseTimer As Double
+    Static bufferedDir As String
+
+    If m_SpriteManager.LinkSprite Is Nothing Then
+        releaseTimer = 0#
+        bufferedDir = ""
+    End If
     
     Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
     moveUp = IsKeyPressed(KEY_UP)
@@ -211,13 +219,40 @@ Private Sub HandleInput()
     If moveRight Then newDir = newDir & "R"
     
     ' Block movement if collision detected
-    If newDir <> "" And Not currentCell Is Nothing Then
-        If DirectionBlocked(newDir, currentCell) Then newDir = ""
+    Dim attemptedDir As String
+    attemptedDir = newDir
+
+    If attemptedDir <> "" And Not currentCell Is Nothing Then
+        If DirectionBlocked(attemptedDir, currentCell) Then attemptedDir = ""
+    End If
+
+    If attemptedDir <> "" Then
+        releaseTimer = INPUT_BUFFER_SECONDS
+        bufferedDir = attemptedDir
+    Else
+        If releaseTimer > 0# Then
+            releaseTimer = releaseTimer - deltaSeconds
+            If releaseTimer > 0# And bufferedDir <> "" Then
+                attemptedDir = bufferedDir
+                If Not currentCell Is Nothing Then
+                    If DirectionBlocked(attemptedDir, currentCell) Then
+                        attemptedDir = ""
+                        bufferedDir = ""
+                        releaseTimer = 0#
+                    End If
+                End If
+            Else
+                bufferedDir = ""
+                releaseTimer = 0#
+            End If
+        Else
+            bufferedDir = ""
+        End If
     End If
     
     ' Update direction
-    Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = newDir
-    m_GameState.MoveDir = newDir
+    Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = attemptedDir
+    m_GameState.MoveDir = attemptedDir
     
     ' Process actions
     m_ActionManager.ProcessAction KEY_C
@@ -234,7 +269,9 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     Else
         facingDir = movementDir
     End If
-    m_SpriteManager.UpdateFrame movementDir, facingDir, m_GameState.MoveSpeed, deltaSeconds
+    Dim effectiveSpeed As Double
+    effectiveSpeed = m_GameState.MoveSpeed * LINK_SPEED_MULTIPLIER
+    m_SpriteManager.UpdateFrame movementDir, facingDir, effectiveSpeed, deltaSeconds
     m_SpriteManager.UpdatePosition
     m_SpriteManager.UpdateVisibility
     On Error Resume Next
@@ -287,15 +324,13 @@ End Function
 '###################################################################################
 
 Private Function IsQuitRequested() As Boolean
-    Dim keyState As Long
-    keyState = GetAsyncKeyState(KEY_Q)
-    IsQuitRequested = ((keyState And &H8000&) <> 0)
+    IsQuitRequested = IsKeyPressed(KEY_Q)
 End Function
 
 Private Function IsKeyPressed(ByVal vKey As Integer) As Boolean
     Dim state As Long
     state = GetAsyncKeyState(vKey)
-    IsKeyPressed = ((state And &H8000&) <> 0)
+    IsKeyPressed = ((state And &H8000&) <> 0) Or ((state And 1) <> 0)
 End Function
 
 Private Function FindLinkSprite(ByVal sheetName As String) As String
