@@ -19,6 +19,7 @@ Private m_PreviousEnableEvents As Boolean
 Private m_PreviousDisplayStatusBar As Boolean
 Private m_PreviousCalculation As XlCalculation
 Private m_InGameMode As Boolean
+Private m_IsRunning As Boolean
 
 '###################################################################################
 '                              Main Game Loop
@@ -36,10 +37,8 @@ Public Sub Start()
     Exit Sub
     
 ErrorHandler:
-    Call ExitGameMode
-    RestoreExcelNavigation
+    StopGameLoop
     MsgBox "Game Error: " & Err.Description, vbCritical
-    Sheets(SHEET_TITLE).Activate
 End Sub
 
 Private Sub StartGame()
@@ -96,6 +95,7 @@ Private Sub StartGame()
     If m_GameState.CurrentScreen <> "" Then Application.Run m_GameState.CurrentScreen
     On Error GoTo ErrorHandler
     Application.ScreenUpdating = False
+    m_IsRunning = True
     
     Exit Sub
     
@@ -107,52 +107,76 @@ ErrorHandler:
 End Sub
 
 Private Sub UpdateLoop()
-    ' Main game loop - runs every frame
     On Error GoTo ErrorHandler
-    Dim frameDelay As Long
-    
-    Do
-        ' Quit check
-        If IsQuitRequested() Then Exit Do
-        Dim deltaSeconds As Double
-        deltaSeconds = m_GameState.BeginFrame()
-        
-        ' Update game state
-        m_GameState.RefreshFromDataSheet
-        Call Update(deltaSeconds)
-        Application.ScreenUpdating = True
-        DoEvents
-        If IsQuitRequested() Then Exit Do
-        
-        ' Sleep for frame timing
-        frameDelay = m_GameState.GameSpeed
-        If frameDelay <= 0 Then
-            frameDelay = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
-            If frameDelay <= 0 Then frameDelay = DEFAULT_GAME_SPEED
-            m_GameState.GameSpeed = frameDelay
+    If Not m_IsRunning Then Exit Sub
+
+    Const MIN_SLEEP_MS As Long = 1
+    Dim targetStep As Double
+    targetStep = FIXED_FRAME_SECONDS
+
+    Dim lastTick As Double
+    lastTick = Timer
+    Dim accumulator As Double
+    accumulator = 0#
+
+    Do While m_IsRunning
+        Dim now As Double
+        now = Timer
+        Dim elapsed As Double
+        elapsed = now - lastTick
+        If elapsed < 0# Then elapsed = elapsed + 86400#
+        accumulator = accumulator + elapsed
+        lastTick = now
+
+        Do While accumulator >= targetStep And m_IsRunning
+            Dim deltaSeconds As Double
+            deltaSeconds = m_GameState.BeginFrame(targetStep)
+            m_GameState.RefreshFromDataSheet
+            Update deltaSeconds
+
+            accumulator = accumulator - targetStep
+            If IsQuitRequested() Then
+                m_IsRunning = False
+                Exit Do
+            End If
+        Loop
+
+        If Not m_IsRunning Then Exit Do
+
+    ' Render interpolated visuals between fixed logic updates
+    Dim alpha As Double
+    alpha = 0#
+    If targetStep > 0# Then alpha = accumulator / targetStep
+    If alpha < 0# Then alpha = 0#
+    If alpha > 1# Then alpha = 1#
+    On Error Resume Next
+    If Not m_SpriteManager Is Nothing Then m_SpriteManager.RenderInterpolated alpha
+    On Error GoTo ErrorHandler
+
+    Application.ScreenUpdating = True
+    Application.CutCopyMode = False
+    DoEvents
+    Application.ScreenUpdating = False
+
+        If IsQuitRequested() Then
+            m_IsRunning = False
+            Exit Do
         End If
-        Sleep frameDelay
-        If IsQuitRequested() Then Exit Do
-        DoEvents
-        If IsQuitRequested() Then Exit Do
-        Application.CutCopyMode = False
-        Application.ScreenUpdating = False
+
+        If accumulator < targetStep Then
+            Dim sleepMs As Long
+            sleepMs = CLng((targetStep - accumulator) * 1000#)
+            If sleepMs < MIN_SLEEP_MS Then sleepMs = MIN_SLEEP_MS
+            Sleep sleepMs
+        End If
     Loop
-    
-    ' Cleanup
-    Call DestroyAllManagers
-    Call ExitGameMode
-    RestoreExcelNavigation
-    Sheets(SHEET_TITLE).Activate
-    
+
+    StopGameLoop
     Exit Sub
-    
+
 ErrorHandler:
+    StopGameLoop
     MsgBox "Update Error: " & Err.Description, vbCritical
-    Call DestroyAllManagers
-    Call ExitGameMode
-    RestoreExcelNavigation
-    Sheets(SHEET_TITLE).Activate
 End Sub
 
 Private Sub Update(ByVal deltaSeconds As Double)
@@ -627,3 +651,28 @@ Private Sub ExitGameMode()
     m_InGameMode = False
     On Error GoTo 0
 End Sub
+
+Private Sub StopGameLoop()
+    ' Centralized stop/cleanup logic used by the loop and error handlers
+    On Error Resume Next
+    m_IsRunning = False
+    ' Tear down managers and restore Excel UI
+    DestroyAllManagers
+    Call ExitGameMode
+    Call RestoreExcelNavigation
+    Application.CutCopyMode = False
+    Application.ScreenUpdating = True
+    ' Try to activate title sheet if present
+    If SheetExists(SHEET_TITLE) Then
+        Sheets(SHEET_TITLE).Activate
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function SheetExists(ByVal sheetName As String) As Boolean
+    On Error Resume Next
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    SheetExists = Not ws Is Nothing
+    On Error GoTo 0
+End Function

@@ -15,6 +15,8 @@ Private Type SpriteData
     LastFrameShape As String
     PendingFrameName As String
     PendingHideName As String
+    PrevTop As Double
+    PrevLeft As Double
 End Type
 
 Private m_Sprite As SpriteData
@@ -37,6 +39,8 @@ Private Sub ResetState()
     m_Sprite.LastFrameShape = ""
     m_Sprite.PendingFrameName = ""
     m_Sprite.PendingHideName = ""
+    m_Sprite.PrevTop = 0
+    m_Sprite.PrevLeft = 0
 End Sub
 
 Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal spriteName As String = "")
@@ -55,6 +59,8 @@ Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal s
     ' Set initial position from sprite's actual location
     m_Sprite.Top = m_Sprite.LinkSprite.Top
     m_Sprite.Left = m_Sprite.LinkSprite.Left
+    m_Sprite.PrevTop = m_Sprite.Top
+    m_Sprite.PrevLeft = m_Sprite.Left
 
     ' Determine frame from sprite name (LinkDown1 = frame 1, LinkDown2 = frame 2, etc.)
     If InStr(spriteName, "1") > 0 Then
@@ -97,10 +103,12 @@ Public Sub Reset()
             m_Sprite.Frame = 1
             m_Sprite.StepAccumulator = 0
             m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
-            m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
+                m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
             ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
             m_Sprite.PendingFrameName = ""
             m_Sprite.PendingHideName = ""
+                m_Sprite.PrevTop = m_Sprite.Top
+                m_Sprite.PrevLeft = m_Sprite.Left
         End If
     End If
     
@@ -147,23 +155,16 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     Dim gs As GameState
     Set gs = GameStateInstance
 
-    Dim expectedFrameSeconds As Double
-    If Not gs Is Nothing Then
-        expectedFrameSeconds = gs.ExpectedFrameSeconds
+    Dim pixelsPerTick As Double
+    pixelsPerTick = moveSpeed * LINK_SPEED_MULTIPLIER
+    If pixelsPerTick <= 0# Then
+        pixelsPerTick = 0#
+    ElseIf pixelsPerTick < MIN_PIXELS_PER_TICK Then
+        pixelsPerTick = MIN_PIXELS_PER_TICK
     End If
-    If expectedFrameSeconds <= 0# Then expectedFrameSeconds = DEFAULT_FRAME_SECONDS
 
-    Dim effectiveDelta As Double
-    effectiveDelta = deltaSeconds
-    If effectiveDelta <= 0# Then effectiveDelta = expectedFrameSeconds
-
-    Dim frameScale As Double
-    frameScale = effectiveDelta / expectedFrameSeconds
-    If frameScale < 0.25 Then frameScale = 0.25
-    If frameScale > 2# Then frameScale = 2#
-
-    Dim distance As Double
-    distance = moveSpeed * frameScale
+    Dim tickCount As Long
+    If Not gs Is Nothing Then tickCount = gs.TickCount
 
     Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
     moveUp = InStr(movementDir, "U") > 0
@@ -187,17 +188,24 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     Dim verticalStep As Double
     Dim horizontalStep As Double
     If hasVertical And hasHorizontal Then
-        verticalStep = distance / Sqr(2#)
-        horizontalStep = distance / Sqr(2#)
+        If pixelsPerTick > 0# Then
+            verticalStep = pixelsPerTick / Sqr(2#)
+            horizontalStep = verticalStep
+        Else
+            verticalStep = 0#
+            horizontalStep = 0#
+        End If
     Else
-        verticalStep = distance
-        horizontalStep = distance
+        verticalStep = pixelsPerTick
+        horizontalStep = pixelsPerTick
     End If
 
     Dim oldTop As Double
     Dim oldLeft As Double
     oldTop = m_Sprite.Top
     oldLeft = m_Sprite.Left
+    m_Sprite.PrevTop = oldTop
+    m_Sprite.PrevLeft = oldLeft
 
     Dim newTop As Double
     Dim newLeft As Double
@@ -209,26 +217,14 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     If moveLeft Then newLeft = newLeft - horizontalStep
     If moveRight Then newLeft = newLeft + horizontalStep
 
-    Dim moveDelta As Double
-    moveDelta = Sqr((newLeft - oldLeft) ^ 2 + (newTop - oldTop) ^ 2)
+    Dim movedThisTick As Boolean
+    movedThisTick = (newLeft <> oldLeft) Or (newTop <> oldTop)
 
-    If Len(movementDir) = 0 Or moveDelta <= 0.0001 Then
+    If Not movedThisTick Then
         If m_Sprite.Frame <> 1 Then m_Sprite.Frame = 1
         m_Sprite.StepAccumulator = 0#
-    Else
-        Dim thresholdDistance As Double
-        If LINK_STEP_FRAME_DISTANCE > 0# Then
-            thresholdDistance = LINK_STEP_FRAME_DISTANCE
-        Else
-            thresholdDistance = moveSpeed * LINK_ANIM_FRAME_SECONDS
-            If thresholdDistance <= 0# Then thresholdDistance = 6#
-        End If
-        m_Sprite.StepAccumulator = m_Sprite.StepAccumulator + moveDelta
-        If m_Sprite.StepAccumulator >= thresholdDistance Then
-            m_Sprite.StepAccumulator = m_Sprite.StepAccumulator - thresholdDistance
-            If m_Sprite.StepAccumulator > thresholdDistance Then
-                m_Sprite.StepAccumulator = thresholdDistance
-            End If
+    ElseIf ANIMATION_TICKS_PER_FRAME > 0 Then
+        If tickCount Mod ANIMATION_TICKS_PER_FRAME = 0 Then
             If m_Sprite.Frame = 1 Then
                 m_Sprite.Frame = 2
             Else
@@ -273,7 +269,6 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     Set m_Sprite.LinkSprite = activeShape
     m_Sprite.PendingFrameName = activeShape.Name
 
-    ' Sync global for legacy code compatibility
     Set LinkSprite = m_Sprite.LinkSprite
 
     On Error GoTo 0
@@ -287,6 +282,27 @@ Public Sub UpdatePosition()
     End If
     m_Sprite.LinkSprite.Top = m_Sprite.Top
     m_Sprite.LinkSprite.Left = m_Sprite.Left
+    SyncAllLinkFrames
+    On Error GoTo 0
+End Sub
+
+Public Sub RenderInterpolated(ByVal alpha As Double)
+    ' Render sprite at interpolated position between Prev and current
+    On Error Resume Next
+    If m_Sprite.LinkSprite Is Nothing Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+    If alpha < 0# Then alpha = 0#
+    If alpha > 1# Then alpha = 1#
+
+    Dim interpTop As Double
+    Dim interpLeft As Double
+    interpTop = m_Sprite.PrevTop + (m_Sprite.Top - m_Sprite.PrevTop) * alpha
+    interpLeft = m_Sprite.PrevLeft + (m_Sprite.Left - m_Sprite.PrevLeft) * alpha
+
+    m_Sprite.LinkSprite.Top = interpTop
+    m_Sprite.LinkSprite.Left = interpLeft
     SyncAllLinkFrames
     On Error GoTo 0
 End Sub

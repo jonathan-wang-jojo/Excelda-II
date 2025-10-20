@@ -19,6 +19,7 @@ Private Type GameData
     TriggerCellAddress As String
     LastFrameTimestamp As Double
     FrameDeltaSeconds As Double
+    TickCount As Long
 End Type
 
 Private m_Game As GameData
@@ -48,6 +49,7 @@ Public Sub Reset()
     m_Game.CurrentScreen = ""
     m_Game.FrameDeltaSeconds = DEFAULT_FRAME_SECONDS
     m_Game.LastFrameTimestamp = Timer
+    m_Game.TickCount = 0
 End Sub
 
 Public Sub Initialize()
@@ -164,7 +166,15 @@ Public Property Let TriggerCellAddress(ByVal Value As String)
     m_Game.TriggerCellAddress = Value
 End Property
 
-Public Function BeginFrame() As Double
+Public Function BeginFrame(Optional ByVal fixedSeconds As Double = 0#) As Double
+    If fixedSeconds > 0# Then
+        m_Game.FrameDeltaSeconds = fixedSeconds
+        m_Game.LastFrameTimestamp = Timer
+        m_Game.TickCount = m_Game.TickCount + 1
+        BeginFrame = m_Game.FrameDeltaSeconds
+        Exit Function
+    End If
+
     Dim now As Double
     now = Timer
     If m_Game.LastFrameTimestamp = 0# Then
@@ -181,11 +191,16 @@ Public Function BeginFrame() As Double
         End If
     End If
     m_Game.LastFrameTimestamp = now
+    m_Game.TickCount = m_Game.TickCount + 1
     BeginFrame = m_Game.FrameDeltaSeconds
 End Function
 
 Public Property Get FrameDeltaSeconds() As Double
     FrameDeltaSeconds = m_Game.FrameDeltaSeconds
+End Property
+
+Public Property Get TickCount() As Long
+    TickCount = m_Game.TickCount
 End Property
 
 Public Property Get ExpectedFrameSeconds() As Double
