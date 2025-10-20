@@ -7,7 +7,6 @@ Option Explicit
 
 ' Win32 API Declarations
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
-Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
 ' Module-level variables
 Private m_GameState As GameState
@@ -110,7 +109,6 @@ Private Sub UpdateLoop()
     On Error GoTo ErrorHandler
     If Not m_IsRunning Then Exit Sub
 
-    Const MIN_SLEEP_MS As Long = 1
     Dim targetStep As Double
     targetStep = FIXED_FRAME_SECONDS
 
@@ -126,6 +124,7 @@ Private Sub UpdateLoop()
         elapsed = now - lastTick
         If elapsed < 0# Then elapsed = elapsed + 86400#
         accumulator = accumulator + elapsed
+        If accumulator > targetStep * 5# Then accumulator = targetStep * 5#
         lastTick = now
 
         Do While accumulator >= targetStep And m_IsRunning
@@ -163,12 +162,6 @@ Private Sub UpdateLoop()
             Exit Do
         End If
 
-        If accumulator < targetStep Then
-            Dim sleepMs As Long
-            sleepMs = CLng((targetStep - accumulator) * 1000#)
-            If sleepMs < MIN_SLEEP_MS Then sleepMs = MIN_SLEEP_MS
-            Sleep sleepMs
-        End If
     Loop
 
     StopGameLoop
@@ -293,9 +286,9 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     Else
         facingDir = movementDir
     End If
-    Dim effectiveSpeed As Double
-    effectiveSpeed = m_GameState.MoveSpeed * LINK_SPEED_MULTIPLIER
-    m_SpriteManager.UpdateFrame movementDir, facingDir, effectiveSpeed, deltaSeconds
+    Dim moveSpeed As Double
+    moveSpeed = m_GameState.MoveSpeed
+    m_SpriteManager.UpdateFrame movementDir, facingDir, moveSpeed, deltaSeconds
     m_SpriteManager.UpdatePosition
     m_SpriteManager.UpdateVisibility
     On Error Resume Next

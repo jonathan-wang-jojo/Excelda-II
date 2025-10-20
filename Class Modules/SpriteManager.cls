@@ -11,12 +11,12 @@ Private Type SpriteData
     Top As Double
     Left As Double
     Frame As Integer
-    StepAccumulator As Double
     LastFrameShape As String
     PendingFrameName As String
     PendingHideName As String
     PrevTop As Double
     PrevLeft As Double
+    AnimTickCounter As Long
 End Type
 
 Private m_Sprite As SpriteData
@@ -35,12 +35,12 @@ Private Sub ResetState()
     m_Sprite.Top = 0
     m_Sprite.Left = 0
     m_Sprite.Frame = 1
-    m_Sprite.StepAccumulator = 0
     m_Sprite.LastFrameShape = ""
     m_Sprite.PendingFrameName = ""
     m_Sprite.PendingHideName = ""
     m_Sprite.PrevTop = 0
     m_Sprite.PrevLeft = 0
+    m_Sprite.AnimTickCounter = 0
 End Sub
 
 Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal spriteName As String = "")
@@ -76,6 +76,7 @@ Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal s
     ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
     m_Sprite.PendingFrameName = ""
     m_Sprite.PendingHideName = ""
+    m_Sprite.AnimTickCounter = 0
 
     Exit Sub
 
@@ -101,7 +102,6 @@ Public Sub Reset()
             m_Sprite.Top = m_Sprite.LinkSprite.Top
             m_Sprite.Left = m_Sprite.LinkSprite.Left
             m_Sprite.Frame = 1
-            m_Sprite.StepAccumulator = 0
             m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
                 m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
             ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
@@ -109,6 +109,7 @@ Public Sub Reset()
             m_Sprite.PendingHideName = ""
                 m_Sprite.PrevTop = m_Sprite.Top
                 m_Sprite.PrevLeft = m_Sprite.Left
+            m_Sprite.AnimTickCounter = 0
         End If
     End If
     
@@ -162,9 +163,6 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     ElseIf pixelsPerTick < MIN_PIXELS_PER_TICK Then
         pixelsPerTick = MIN_PIXELS_PER_TICK
     End If
-
-    Dim tickCount As Long
-    If Not gs Is Nothing Then tickCount = gs.TickCount
 
     Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
     moveUp = InStr(movementDir, "U") > 0
@@ -222,9 +220,11 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
 
     If Not movedThisTick Then
         If m_Sprite.Frame <> 1 Then m_Sprite.Frame = 1
-        m_Sprite.StepAccumulator = 0#
+        m_Sprite.AnimTickCounter = 0
     ElseIf ANIMATION_TICKS_PER_FRAME > 0 Then
-        If tickCount Mod ANIMATION_TICKS_PER_FRAME = 0 Then
+        m_Sprite.AnimTickCounter = m_Sprite.AnimTickCounter + 1
+        If m_Sprite.AnimTickCounter >= ANIMATION_TICKS_PER_FRAME Then
+            m_Sprite.AnimTickCounter = 0
             If m_Sprite.Frame = 1 Then
                 m_Sprite.Frame = 2
             Else
