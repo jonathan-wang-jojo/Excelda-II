@@ -21,9 +21,9 @@ Private m_InGameMode As Boolean
 Private m_IsRunning As Boolean
 
 '###################################################################################
-'                              Main Game Loop
+'                              ENTRY POINT
 '###################################################################################
-' Standard game pattern: Start ? Update ? Cleanup
+' Standard game pattern: Start → Update → Cleanup
 
 Public Sub Start()
     ' Standard game entry point - call this to begin a new game
@@ -39,7 +39,9 @@ ErrorHandler:
     StopGameLoop
     MsgBox "Game Error: " & Err.Description, vbCritical
 End Sub
-
+'###################################################################################
+'                              STARTUP SEQUENCE
+'###################################################################################
 Private Sub StartGame()
     ' Initialize everything needed for a new game
     On Error GoTo ErrorHandler
@@ -74,9 +76,9 @@ Private Sub StartGame()
     If spriteName = "" Then Err.Raise vbObjectError + 1, "StartGame", "Link sprite not found"
     
     ' Initialize sprite manager
-    m_SpriteManager.Initialize screen, spriteName
+    m_SpriteManager.BindLinkSprite screen, spriteName
     m_SpriteManager.UpdateVisibility
-    m_ActionManager.Initialize screen
+    m_ActionManager.Initialize
     
     ' Set game state
     m_GameState.RefreshFromDataSheet
@@ -105,6 +107,9 @@ ErrorHandler:
     Sheets(SHEET_TITLE).Activate
 End Sub
 
+'###################################################################################
+'                              RUNTIME LOOP
+'###################################################################################
 Private Sub UpdateLoop()
     On Error GoTo ErrorHandler
     If Not m_IsRunning Then Exit Sub
@@ -142,20 +147,20 @@ Private Sub UpdateLoop()
 
         If Not m_IsRunning Then Exit Do
 
-    ' Render interpolated visuals between fixed logic updates
-    Dim alpha As Double
-    alpha = 0#
-    If targetStep > 0# Then alpha = accumulator / targetStep
-    If alpha < 0# Then alpha = 0#
-    If alpha > 1# Then alpha = 1#
-    On Error Resume Next
-    If Not m_SpriteManager Is Nothing Then m_SpriteManager.RenderInterpolated alpha
-    On Error GoTo ErrorHandler
+        ' Render interpolated visuals between fixed logic updates
+        Dim alpha As Double
+        alpha = 0#
+        If targetStep > 0# Then alpha = accumulator / targetStep
+        If alpha < 0# Then alpha = 0#
+        If alpha > 1# Then alpha = 1#
+        On Error Resume Next
+        If Not m_SpriteManager Is Nothing Then m_SpriteManager.RenderInterpolated alpha
+        On Error GoTo ErrorHandler
 
-    Application.ScreenUpdating = True
-    Application.CutCopyMode = False
-    DoEvents
-    Application.ScreenUpdating = False
+        Application.ScreenUpdating = True
+        Application.CutCopyMode = False
+        DoEvents
+        Application.ScreenUpdating = False
 
         If IsQuitRequested() Then
             m_IsRunning = False
@@ -172,6 +177,9 @@ ErrorHandler:
     MsgBox "Update Error: " & Err.Description, vbCritical
 End Sub
 
+'###################################################################################
+'                              PER-FRAME UPDATE
+'###################################################################################
 Private Sub Update(ByVal deltaSeconds As Double)
     ' Core game update - called every frame
     
@@ -198,6 +206,9 @@ Private Sub Update(ByVal deltaSeconds As Double)
     Call UpdateSprites(deltaSeconds)
 End Sub
 
+'###################################################################################
+'                              INPUT HANDLING
+'###################################################################################
 Private Sub HandleInput(ByVal deltaSeconds As Double)
     ' Process player input
     Dim newDir As String
@@ -413,8 +424,8 @@ Private Sub HandleTriggers()
     
     ' Execute scroll
     If scrollInd = "S" Then
-        Call myScroll(scrollDir)
-        m_ActionManager.Initialize m_GameState.CurrentScreen
+    Call myScroll(scrollDir)
+    m_ActionManager.Initialize
         m_SpriteManager.UpdateVisibility
     End If
     
@@ -521,7 +532,7 @@ Sub Relocate(ByVal code As String)
     
     Call alignScreen
     Call calculateScreenLocation(scrollDir, offsetDir)
-    m_ActionManager.Initialize m_GameState.CurrentScreen
+    m_ActionManager.Initialize
     m_SpriteManager.UpdateVisibility
     
     On Error GoTo ScreenSetupError

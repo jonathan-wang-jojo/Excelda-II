@@ -20,7 +20,9 @@ End Type
 
 Private m_Action As ActionData
 
-' Initialization
+'===================================================================================
+'                              INITIALIZATION
+'===================================================================================
 Private Sub Class_Initialize()
     Initialize
 End Sub
@@ -29,7 +31,9 @@ Private Sub Class_Terminate()
     Destroy
 End Sub
 
-' Core lifecycle
+'===================================================================================
+'                              CORE LIFECYCLE
+'===================================================================================
 Public Sub Reset()
     ResetState
 End Sub
@@ -38,7 +42,7 @@ Public Sub Destroy()
     ResetState
 End Sub
 
-Public Sub Initialize(Optional ByVal screenName As String = "")
+Public Sub Initialize()
     ResetState
 End Sub
 
@@ -49,7 +53,9 @@ Private Sub ResetState()
     m_Action.DPress = 0
     LoadItemsFromSheet
 End Sub
-' Simple accessors
+'===================================================================================
+'                              ACCESSORS
+'===================================================================================
 Public Property Get CItem() As String
     CItem = m_Action.CItem
 End Property
@@ -62,19 +68,22 @@ Public Property Get CPress() As Long
     CPress = m_Action.CPress
 End Property
 
-Public Property Let CPress(ByVal Value As Long)
-    m_Action.CPress = Value
+Public Property Let CPress(ByVal pressFrames As Long)
+    m_Action.CPress = pressFrames
 End Property
 
 Public Property Get DPress() As Long
     DPress = m_Action.DPress
 End Property
 
-Public Property Let DPress(ByVal Value As Long)
-    m_Action.DPress = Value
+Public Property Let DPress(ByVal pressFrames As Long)
+    m_Action.DPress = pressFrames
 End Property
 
-' Core action processing - delegates to existing functions
+'===================================================================================
+'                              CORE PROCESSING
+'===================================================================================
+' Polls current button state and dispatches the appropriate action sprites.
 Public Sub ProcessAction(ByVal keyCode As Integer)
     LoadItemsFromSheet
     Dim item As String
@@ -113,6 +122,9 @@ Public Sub ProcessAction(ByVal keyCode As Integer)
     End Select
 End Sub
 
+'===================================================================================
+'                              SHEET SYNCHRONISATION
+'===================================================================================
 Private Sub LoadItemsFromSheet()
     On Error Resume Next
     m_Action.CItem = Sheets(SHEET_DATA).Range(RANGE_C_ITEM).Value

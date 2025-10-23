@@ -1,5 +1,11 @@
 Option Explicit
 
+'===================================================================================
+'                              FRIENDLY MANAGER CLASS
+'===================================================================================
+
+Private Const MAX_FRIENDLY_SLOTS As Long = 4
+
 Private Type FriendlySlot
     BaseName As String
     DataRow As Long
@@ -8,7 +14,11 @@ Private Type FriendlySlot
     ScreenName As String
 End Type
 
-Private m_Friendlies(1 To 4) As FriendlySlot
+Private m_Friendlies(1 To MAX_FRIENDLY_SLOTS) As FriendlySlot
+
+'===================================================================================
+'                              INITIALIZATION & LIFECYCLE
+'===================================================================================
 
 Private Sub Class_Initialize()
     Initialize
@@ -23,14 +33,14 @@ Public Sub Initialize()
 End Sub
 
 Public Sub Reset()
-    Dim i As Long
-    For i = 1 To 4
-        If m_Friendlies(i).Active Then
-            DespawnFriendly i, m_Friendlies(i).DataRow
+    Dim slotIndex As Long
+    For slotIndex = 1 To MAX_FRIENDLY_SLOTS
+        If m_Friendlies(slotIndex).Active Then
+            DespawnFriendly slotIndex, m_Friendlies(slotIndex).DataRow
         Else
-            ClearFriendly i
+            ClearFriendly slotIndex
         End If
-    Next i
+    Next slotIndex
     ResetState
 End Sub
 
@@ -39,14 +49,18 @@ Public Sub Destroy()
 End Sub
 
 Private Sub ResetState()
-    Dim i As Long
-    For i = 1 To 4
-        ClearFriendly i
-    Next i
+    Dim slotIndex As Long
+    For slotIndex = 1 To MAX_FRIENDLY_SLOTS
+        ClearFriendly slotIndex
+    Next slotIndex
 End Sub
 
-Public Sub SpawnFriendly(ByVal slot As Long, ByVal baseName As String, ByVal dataRow As Long, ByVal anchorCell As Range, Optional ByVal direction As String = "D")
-    If Not ValidSlot(slot) Then Exit Sub
+'===================================================================================
+'                              SPAWNING & CLEANUP
+'===================================================================================
+
+Public Sub SpawnFriendly(ByVal slotIndex As Long, ByVal baseName As String, ByVal dataRow As Long, ByVal anchorCell As Range, Optional ByVal direction As String = "D")
+    If Not ValidSlot(slotIndex) Then Exit Sub
     If baseName = "" Then Exit Sub
     If anchorCell Is Nothing Then Exit Sub
 
@@ -56,19 +70,19 @@ Public Sub SpawnFriendly(ByVal slot As Long, ByVal baseName As String, ByVal dat
     Dim screenName As String
     screenName = anchorCell.Worksheet.Name
 
-    RegisterFriendly slot, baseName, dataRow, normalizedDir, screenName
+    RegisterFriendly slotIndex, baseName, dataRow, normalizedDir, screenName
     AlignFriendlyShapes baseName, anchorCell, normalizedDir
     Sheets(SHEET_DATA).Range("C" & dataRow).Value = "Y"
     ForceFriendlyRefresh
 End Sub
 
-Public Sub DespawnFriendly(ByVal slot As Long, ByVal dataRow As Long)
-    If Not ValidSlot(slot) Then Exit Sub
+Public Sub DespawnFriendly(ByVal slotIndex As Long, ByVal dataRow As Long)
+    If Not ValidSlot(slotIndex) Then Exit Sub
 
     Dim baseName As String
     Dim screenName As String
-    baseName = m_Friendlies(slot).BaseName
-    screenName = m_Friendlies(slot).ScreenName
+    baseName = m_Friendlies(slotIndex).BaseName
+    screenName = m_Friendlies(slotIndex).ScreenName
 
     If baseName <> "" Then
         HideFriendlyShapes baseName, screenName
@@ -78,58 +92,62 @@ Public Sub DespawnFriendly(ByVal slot As Long, ByVal dataRow As Long)
         Sheets(SHEET_DATA).Range("C" & dataRow).Value = "N"
     End If
 
-    ClearFriendly slot
+    ClearFriendly slotIndex
     ForceFriendlyRefresh
 End Sub
 
-Public Function FriendlyBaseName(ByVal slot As Long) As String
-    If ValidSlot(slot) Then
-        FriendlyBaseName = m_Friendlies(slot).BaseName
+'===================================================================================
+'                              ACCESSORS & MUTATORS
+'===================================================================================
+
+Public Function FriendlyBaseName(ByVal slotIndex As Long) As String
+    If ValidSlot(slotIndex) Then
+        FriendlyBaseName = m_Friendlies(slotIndex).BaseName
     End If
 End Function
 
-Public Function FriendlyDirection(ByVal slot As Long) As String
-    If ValidSlot(slot) Then
-        FriendlyDirection = m_Friendlies(slot).Direction
+Public Function FriendlyDirection(ByVal slotIndex As Long) As String
+    If ValidSlot(slotIndex) Then
+        FriendlyDirection = m_Friendlies(slotIndex).Direction
     End If
 End Function
 
-Public Function FriendlyDataRow(ByVal slot As Long) As Long
-    If ValidSlot(slot) Then
-        FriendlyDataRow = m_Friendlies(slot).DataRow
+Public Function FriendlyDataRow(ByVal slotIndex As Long) As Long
+    If ValidSlot(slotIndex) Then
+        FriendlyDataRow = m_Friendlies(slotIndex).DataRow
     End If
 End Function
 
-Public Function FriendlyIsActive(ByVal slot As Long) As Boolean
-    If ValidSlot(slot) Then
-        FriendlyIsActive = m_Friendlies(slot).Active
+Public Function FriendlyIsActive(ByVal slotIndex As Long) As Boolean
+    If ValidSlot(slotIndex) Then
+        FriendlyIsActive = m_Friendlies(slotIndex).Active
     End If
 End Function
 
-Public Sub SetFriendlyDirection(ByVal slot As Long, ByVal direction As String)
-    If Not ValidSlot(slot) Then Exit Sub
-    If Not m_Friendlies(slot).Active Then Exit Sub
+Public Sub SetFriendlyDirection(ByVal slotIndex As Long, ByVal direction As String)
+    If Not ValidSlot(slotIndex) Then Exit Sub
+    If Not m_Friendlies(slotIndex).Active Then Exit Sub
 
     Dim normalizedDir As String
     normalizedDir = NormalizeDirection(direction)
 
-    If normalizedDir = m_Friendlies(slot).Direction Then Exit Sub
+    If normalizedDir = m_Friendlies(slotIndex).Direction Then Exit Sub
 
-    m_Friendlies(slot).Direction = normalizedDir
-    UpdateFriendlyVisibility slot
+    m_Friendlies(slotIndex).Direction = normalizedDir
+    UpdateFriendlyVisibility slotIndex
     ForceFriendlyRefresh
 End Sub
 
-Public Function GetFriendlyShape(ByVal slot As Long) As Shape
-    If Not ValidSlot(slot) Then Exit Function
-    If Not m_Friendlies(slot).Active Then Exit Function
+Public Function GetFriendlyShape(ByVal slotIndex As Long) As Shape
+    If Not ValidSlot(slotIndex) Then Exit Function
+    If Not m_Friendlies(slotIndex).Active Then Exit Function
 
     Dim ws As Worksheet
-    Set ws = SheetIfExists(m_Friendlies(slot).ScreenName)
+    Set ws = SheetIfExists(m_Friendlies(slotIndex).ScreenName)
     If ws Is Nothing Then Exit Function
 
     Dim shapeName As String
-    shapeName = m_Friendlies(slot).BaseName & m_Friendlies(slot).Direction
+    shapeName = m_Friendlies(slotIndex).BaseName & m_Friendlies(slotIndex).Direction
     Set GetFriendlyShape = ShapeIfExists(ws, shapeName)
 End Function
 
@@ -140,10 +158,14 @@ Public Sub ForceFriendlyRefresh()
     Application.ScreenUpdating = previousState
 End Sub
 
-Private Sub RegisterFriendly(ByVal slot As Long, ByVal baseName As String, ByVal dataRow As Long, ByVal direction As String, ByVal screenName As String)
-    If Not ValidSlot(slot) Then Exit Sub
+'===================================================================================
+'                              INTERNAL HELPERS
+'===================================================================================
 
-    With m_Friendlies(slot)
+Private Sub RegisterFriendly(ByVal slotIndex As Long, ByVal baseName As String, ByVal dataRow As Long, ByVal direction As String, ByVal screenName As String)
+    If Not ValidSlot(slotIndex) Then Exit Sub
+
+    With m_Friendlies(slotIndex)
         .BaseName = baseName
         .DataRow = dataRow
         .Direction = direction
@@ -152,10 +174,10 @@ Private Sub RegisterFriendly(ByVal slot As Long, ByVal baseName As String, ByVal
     End With
 End Sub
 
-Private Sub ClearFriendly(ByVal slot As Long)
-    If Not ValidSlot(slot) Then Exit Sub
+Private Sub ClearFriendly(ByVal slotIndex As Long)
+    If Not ValidSlot(slotIndex) Then Exit Sub
 
-    With m_Friendlies(slot)
+    With m_Friendlies(slotIndex)
         .BaseName = ""
         .DataRow = 0
         .Direction = "D"
@@ -194,16 +216,16 @@ Private Sub AlignFriendlyShapes(ByVal baseName As String, ByVal anchorCell As Ra
     Next dir
 End Sub
 
-Private Sub UpdateFriendlyVisibility(ByVal slot As Long)
-    If Not ValidSlot(slot) Then Exit Sub
-    If Not m_Friendlies(slot).Active Then Exit Sub
+Private Sub UpdateFriendlyVisibility(ByVal slotIndex As Long)
+    If Not ValidSlot(slotIndex) Then Exit Sub
+    If Not m_Friendlies(slotIndex).Active Then Exit Sub
 
     Dim ws As Worksheet
-    Set ws = SheetIfExists(m_Friendlies(slot).ScreenName)
+    Set ws = SheetIfExists(m_Friendlies(slotIndex).ScreenName)
     If ws Is Nothing Then Exit Sub
 
     Dim baseName As String
-    baseName = m_Friendlies(slot).BaseName
+    baseName = m_Friendlies(slotIndex).BaseName
 
     Dim dir As Variant
     For Each dir In Array("D", "U", "L", "R")
@@ -212,7 +234,7 @@ Private Sub UpdateFriendlyVisibility(ByVal slot As Long)
         Dim shp As Shape
         Set shp = ShapeIfExists(ws, shapeName)
         If Not shp Is Nothing Then
-            shp.Visible = (CStr(dir) = m_Friendlies(slot).Direction)
+            shp.Visible = (CStr(dir) = m_Friendlies(slotIndex).Direction)
             shp.Rotation = 0
         End If
     Next dir
@@ -256,6 +278,6 @@ Private Function SheetIfExists(ByVal sheetName As String) As Worksheet
     On Error GoTo 0
 End Function
 
-Private Function ValidSlot(ByVal slot As Long) As Boolean
-    ValidSlot = (slot >= 1 And slot <= 4)
+Private Function ValidSlot(ByVal slotIndex As Long) As Boolean
+    ValidSlot = (slotIndex >= 1 And slotIndex <= MAX_FRIENDLY_SLOTS)
 End Function

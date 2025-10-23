@@ -1,16 +1,19 @@
-'VERSION 1.0 CLASS
-'BEGIN
-'  MultiUse = -1  'True
-'END
-'Attribute VB_Name = "SpecialEventManager"
 Option Explicit
 
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
-'###################################################################################
-'#                              SPECIAL EVENT FLOW                                #
-'###################################################################################
+'Timing constants reused across events.
+Private Const DEFAULT_EVENT_PAUSE_MS As Long = 2000
+Private Const OWL_FRAME_DELAY_MS As Long = 25
+
+'===================================================================================
+'                              SPECIAL EVENT MANAGER
+'===================================================================================
+
+'===================================================================================
+'                              INITIALIZATION & LIFECYCLE
+'===================================================================================
 
 Private Sub Class_Initialize()
     Initialize
@@ -32,9 +35,17 @@ Public Sub Destroy()
     ' No persistent state to release.
 End Sub
 
+'===================================================================================
+'                              EVENT DISPATCH
+'===================================================================================
+
 Public Sub Trigger(ByVal eventCode As String)
+    Dim normalizedCode As String
+    normalizedCode = Trim$(eventCode)
+    If normalizedCode = "" Then Exit Sub
+
     Dim eventId As String
-    eventId = ExtractEventId(eventCode)
+    eventId = ExtractEventId(normalizedCode)
     If eventId = "" Then Exit Sub
 
     Select Case eventId
@@ -47,9 +58,9 @@ Public Sub Trigger(ByVal eventCode As String)
     End Select
 End Sub
 
-'-----------------------------------------------------------------------------------
-'                               Event Handlers
-'-----------------------------------------------------------------------------------
+'===================================================================================
+'                              EVENT HANDLERS
+'===================================================================================
 
 Private Sub HandleEvent0001()
     Dim ws As Worksheet
@@ -74,7 +85,11 @@ Private Sub HandleEvent0001()
 
     AnimateOwls owl1, owl2, 30, 3, 7
 
-    ShowDialogue DataSheet().Range("T5").Value
+    Dim dataSheet As Worksheet
+    Set dataSheet = DataSheet()
+    If dataSheet Is Nothing Then Exit Sub
+
+    ShowDialogue dataSheet.Range("T5").Value
 
     AnimateOwls owl1, owl2, 30, -3, -7
 
@@ -92,7 +107,11 @@ Private Sub HandleEvent0002()
 End Sub
 
 Private Sub HandleEvent0003()
-    ShowDialogue DataSheet().Range("T9").Value
+    Dim dataSheet As Worksheet
+    Set dataSheet = DataSheet()
+    If dataSheet Is Nothing Then Exit Sub
+
+    ShowDialogue dataSheet.Range("T9").Value
 
     Dim spriteMgr As SpriteManager
     Set spriteMgr = SpriteManagerInstance()
@@ -120,13 +139,17 @@ Private Sub HandleEvent0003()
         gs.CodeCell = ""
     End If
 
-    Sheets(SHEET_DATA).Range("C18").Value = linkShape.TopLeftCell.Address
+    dataSheet.Range("C18").Value = linkShape.TopLeftCell.Address
 End Sub
 
 Private Sub HandleEvent0004()
     If GetAsyncKeyState(KEY_C) = 0 And GetAsyncKeyState(KEY_D) = 0 Then Exit Sub
 
-    ShowDialogue DataSheet().Range("T10").Value
+    Dim dataSheet As Worksheet
+    Set dataSheet = DataSheet()
+    If dataSheet Is Nothing Then Exit Sub
+
+    ShowDialogue dataSheet.Range("T10").Value
 
     Dim ws As Worksheet
     Set ws = CurrentScreenSheet()
@@ -155,18 +178,16 @@ Private Sub HandleEvent0004()
     shieldShape.Left = linkWin.Left
     shieldShape.Visible = True
 
-    TickFrame ws, 2000
+    TickFrame ws, DEFAULT_EVENT_PAUSE_MS
 
-    ShowDialogue DataSheet().Range("T11").Value
+    ShowDialogue dataSheet.Range("T11").Value
 
     linkWin.Visible = False
     shieldShape.Visible = False
     linkSprite.Visible = True
 
-    ShowDialogue DataSheet().Range("T12").Value
+    ShowDialogue dataSheet.Range("T12").Value
 
-    Dim dataSheet As Worksheet
-    Set dataSheet = DataSheet()
     dataSheet.Range("Z3").Value = "Y"
     dataSheet.Range("C26").Value = "Shield"
 
@@ -176,9 +197,9 @@ Private Sub HandleEvent0004()
     ws.Range(ws.Range("CQ613"), ws.Range("CQ613").Offset(1, 7)).Value = ""
 End Sub
 
-'-----------------------------------------------------------------------------------
-'                               Helper Methods
-'-----------------------------------------------------------------------------------
+'===================================================================================
+'                              INTERNAL HELPERS
+'===================================================================================
 
 Private Sub GiveLinkSword(ByVal ws As Worksheet)
     Dim spriteMgr As SpriteManager
@@ -204,7 +225,7 @@ Private Sub GiveLinkSword(ByVal ws As Worksheet)
     swordUp.Left = linkWin.Left + 20
     swordUp.Visible = True
 
-    TickFrame ws, 2000
+    TickFrame ws, DEFAULT_EVENT_PAUSE_MS
 
     swordUp.Visible = False
     Call swordSpin
@@ -212,14 +233,16 @@ Private Sub GiveLinkSword(ByVal ws As Worksheet)
     linkSprite.Visible = True
     linkWin.Visible = False
 
-    ShowDialogue DataSheet().Range("T6").Value
+    Dim dataSheet As Worksheet
+    Set dataSheet = DataSheet()
+    If dataSheet Is Nothing Then Exit Sub
+
+    ShowDialogue dataSheet.Range("T6").Value
 
     ws.Range("EW507:EW514").Value = ""
     ws.Range("EW507:FG507").Value = ""
     ws.Range("FG507:FG514").Value = ""
 
-    Dim dataSheet As Worksheet
-    Set dataSheet = DataSheet()
     dataSheet.Range("Z4").Value = "Y"
     dataSheet.Range("C27").Value = "Sword"
 
@@ -228,7 +251,10 @@ End Sub
 
 Private Sub AnimateOwls(ByVal owl1 As Shape, ByVal owl2 As Shape, ByVal steps As Long, ByVal deltaTop As Double, ByVal deltaLeft As Double)
     Dim ws As Worksheet
+    On Error Resume Next
     Set ws = owl1.TopLeftCell.Worksheet
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
 
     Dim frameCounter As Long
     Dim i As Long
@@ -241,7 +267,7 @@ Private Sub AnimateOwls(ByVal owl1 As Shape, ByVal owl2 As Shape, ByVal steps As
         owl2.Top = owl1.Top
         owl2.Left = owl1.Left
 
-        TickFrame ws, 25
+        TickFrame ws, OWL_FRAME_DELAY_MS
     Next i
 End Sub
 

@@ -23,7 +23,9 @@ End Type
 
 Private m_Game As GameData
 
-' Initialization
+'===================================================================================
+'                              INITIALIZATION
+'===================================================================================
 Private Sub Class_Initialize()
     Initialize
 End Sub
@@ -32,7 +34,9 @@ Private Sub Class_Terminate()
     Destroy
 End Sub
 
-' Core lifecycle
+'===================================================================================
+'                              CORE LIFECYCLE
+'===================================================================================
 Public Sub Reset()
     m_Game.GameSpeed = ReadGameSpeed()
     m_Game.MoveSpeed = ReadMoveSpeed()
@@ -58,26 +62,28 @@ Public Sub Destroy()
     Reset
 End Sub
 
-' Essential properties
+'===================================================================================
+'                              STATE ACCESSORS
+'===================================================================================
 Public Property Get CurrentScreen() As String
     CurrentScreen = m_Game.CurrentScreen
 End Property
 
-Public Property Let CurrentScreen(ByVal Value As String)
-    m_Game.CurrentScreen = Value
+Public Property Let CurrentScreen(ByVal newScreen As String)
+    m_Game.CurrentScreen = newScreen
 End Property
 
 Public Property Get GameSpeed() As Long
     GameSpeed = m_Game.GameSpeed
 End Property
 
-Public Property Let GameSpeed(ByVal Value As Long)
-    If Value < MIN_GAME_SPEED Then
+Public Property Let GameSpeed(ByVal newSpeed As Long)
+    If newSpeed < MIN_GAME_SPEED Then
         m_Game.GameSpeed = DEFAULT_GAME_SPEED
-    ElseIf Value > MAX_GAME_SPEED Then
+    ElseIf newSpeed > MAX_GAME_SPEED Then
         m_Game.GameSpeed = MAX_GAME_SPEED
     Else
-        m_Game.GameSpeed = Value
+        m_Game.GameSpeed = newSpeed
     End If
 End Property
 
@@ -85,17 +91,17 @@ Public Property Get IsPaused() As Boolean
     IsPaused = m_Game.IsPaused
 End Property
 
-Public Property Let IsPaused(ByVal Value As Boolean)
-    m_Game.IsPaused = Value
+Public Property Let IsPaused(ByVal paused As Boolean)
+    m_Game.IsPaused = paused
 End Property
 
 Public Property Get MoveDir() As String
     MoveDir = m_Game.MoveDir
 End Property
 
-Public Property Let MoveDir(ByVal Value As String)
-    m_Game.MoveDir = Value
-    If Value <> "" Then m_Game.LastDir = Value
+Public Property Let MoveDir(ByVal direction As String)
+    m_Game.MoveDir = direction
+    If direction <> "" Then m_Game.LastDir = direction
 End Property
 
 Public Property Get LastDir() As String
@@ -106,13 +112,13 @@ Public Property Get MoveSpeed() As Double
     MoveSpeed = m_Game.MoveSpeed
 End Property
 
-Public Property Let MoveSpeed(ByVal Value As Double)
-    If Value < MIN_LINK_SPEED Then
+Public Property Let MoveSpeed(ByVal newSpeed As Double)
+    If newSpeed < MIN_LINK_SPEED Then
         m_Game.MoveSpeed = DEFAULT_LINK_SPEED
-    ElseIf Value > MAX_LINK_SPEED Then
+    ElseIf newSpeed > MAX_LINK_SPEED Then
         m_Game.MoveSpeed = MAX_LINK_SPEED
     Else
-        m_Game.MoveSpeed = Value
+        m_Game.MoveSpeed = newSpeed
     End If
 End Property
 
@@ -120,50 +126,53 @@ Public Property Get IsFalling() As Boolean
     IsFalling = m_Game.IsFalling
 End Property
 
-Public Property Let IsFalling(ByVal Value As Boolean)
-    m_Game.IsFalling = Value
+Public Property Let IsFalling(ByVal falling As Boolean)
+    m_Game.IsFalling = falling
 End Property
 
 Public Property Get LinkCellAddress() As String
     LinkCellAddress = m_Game.LinkCellAddress
 End Property
 
-Public Property Let LinkCellAddress(ByVal Value As String)
-    m_Game.LinkCellAddress = Value
+Public Property Let LinkCellAddress(ByVal cellAddress As String)
+    m_Game.LinkCellAddress = cellAddress
 End Property
 
 Public Property Get CodeCell() As String
     CodeCell = m_Game.CodeCell
 End Property
 
-Public Property Let CodeCell(ByVal Value As String)
-    m_Game.CodeCell = Value
+Public Property Let CodeCell(ByVal cellValue As String)
+    m_Game.CodeCell = cellValue
 End Property
 
 Public Property Get RNDBounceback() As Long
     RNDBounceback = m_Game.RNDBounceback
 End Property
 
-Public Property Let RNDBounceback(ByVal Value As Long)
-    m_Game.RNDBounceback = Value
+Public Property Let RNDBounceback(ByVal bounceAmount As Long)
+    m_Game.RNDBounceback = bounceAmount
 End Property
 
 Public Property Get ScreenSetUpTimer() As Long
     ScreenSetUpTimer = m_Game.ScreenSetUpTimer
 End Property
 
-Public Property Let ScreenSetUpTimer(ByVal Value As Long)
-    m_Game.ScreenSetUpTimer = Value
+Public Property Let ScreenSetUpTimer(ByVal ticks As Long)
+    m_Game.ScreenSetUpTimer = ticks
 End Property
 
 Public Property Get TriggerCellAddress() As String
     TriggerCellAddress = m_Game.TriggerCellAddress
 End Property
 
-Public Property Let TriggerCellAddress(ByVal Value As String)
-    m_Game.TriggerCellAddress = Value
+Public Property Let TriggerCellAddress(ByVal cellAddress As String)
+    m_Game.TriggerCellAddress = cellAddress
 End Property
 
+'===================================================================================
+'                              FRAME TIMING
+'===================================================================================
 Public Function BeginFrame(Optional ByVal fixedSeconds As Double = 0#) As Double
     If fixedSeconds > 0# Then
         m_Game.FrameDeltaSeconds = fixedSeconds
@@ -203,6 +212,9 @@ Public Property Get ExpectedFrameSeconds() As Double
     End If
 End Property
 
+'===================================================================================
+'                              SHEET SYNCHRONISATION
+'===================================================================================
 Public Sub RefreshFromDataSheet()
     m_Game.GameSpeed = ReadGameSpeed()
     m_Game.MoveSpeed = ReadMoveSpeed()
@@ -210,20 +222,20 @@ End Sub
 
 Private Function ReadGameSpeed() As Long
     On Error Resume Next
-    Dim value As Long
-    value = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
-    If value < MIN_GAME_SPEED Then value = DEFAULT_GAME_SPEED
-    If value > MAX_GAME_SPEED Then value = MAX_GAME_SPEED
-    ReadGameSpeed = value
+    Dim rawValue As Long
+    rawValue = CLng(Val(Sheets(SHEET_DATA).Range(RANGE_GAME_SPEED).Value))
+    If rawValue < MIN_GAME_SPEED Then rawValue = DEFAULT_GAME_SPEED
+    If rawValue > MAX_GAME_SPEED Then rawValue = MAX_GAME_SPEED
+    ReadGameSpeed = rawValue
     On Error GoTo 0
 End Function
 
 Private Function ReadMoveSpeed() As Double
     On Error Resume Next
-    Dim value As Double
-    value = CDbl(Val(Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value))
-    If value < MIN_LINK_SPEED Then value = DEFAULT_LINK_SPEED
-    If value > MAX_LINK_SPEED Then value = MAX_LINK_SPEED
-    ReadMoveSpeed = value
+    Dim rawValue As Double
+    rawValue = CDbl(Val(Sheets(SHEET_DATA).Range(RANGE_LINK_MOVE).Value))
+    If rawValue < MIN_LINK_SPEED Then rawValue = DEFAULT_LINK_SPEED
+    If rawValue > MAX_LINK_SPEED Then rawValue = MAX_LINK_SPEED
+    ReadMoveSpeed = rawValue
     On Error GoTo 0
 End Function

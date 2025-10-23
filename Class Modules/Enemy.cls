@@ -1,19 +1,10 @@
-'VERSION 1.0 CLASS
-'BEGIN
-'  MultiUse = -1  'True
-'END
-'Attribute VB_Name = "Enemy"
-'Attribute VB_GlobalNameSpace = False
-'Attribute VB_Creatable = False
-'Attribute VB_PredeclaredId = False
-'Attribute VB_Exposed = False
 Option Explicit
 
-'###################################################################################
+'===================================================================================
 '                              ENEMY CLASS
-'###################################################################################
-' Represents a single enemy instance with all its properties
-'###################################################################################
+'===================================================================================
+' Represents a single enemy instance and its runtime state.
+'===================================================================================
 
 ' Enemy identification
 Public Name As String
@@ -49,9 +40,9 @@ Public CanShoot As String
 Public IsActive As Boolean
 Public IsVisible As Boolean
 
-'###################################################################################
+'===================================================================================
 '                              INITIALIZATION
-'###################################################################################
+'===================================================================================
 
 Private Sub Class_Initialize()
     Reset
@@ -88,9 +79,9 @@ Public Sub Reset()
     IsVisible = False
 End Sub
 
-'###################################################################################
+'===================================================================================
 '                              CORE METHODS
-'###################################################################################
+'===================================================================================
 
 Public Sub LoadFromData(enemyTypeName As String, slotNum As Long, dataRow As Long)
     ' Load enemy data from Data sheet - matches actual Excel structure

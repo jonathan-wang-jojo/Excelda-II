@@ -1,17 +1,16 @@
-'VERSION 1.0 CLASS
-'BEGIN
-'  MultiUse = -1  'True
-'END
-'Attribute VB_Name = "ObjectManager"
 Option Explicit
 
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
 Private Const MAX_OBJECT_SLOTS As Long = 30
 
-'###################################################################################
-'#                              OBJECT MANAGEMENT                                 #
-'###################################################################################
+'===================================================================================
+'                              OBJECT MANAGER CLASS
+'===================================================================================
+
+'===================================================================================
+'                              INITIALIZATION & LIFECYCLE
+'===================================================================================
 
 Private Sub Class_Initialize()
     Initialize
@@ -33,19 +32,30 @@ Public Sub Destroy()
     ' Object manager currently has no resources to release.
 End Sub
 
+'===================================================================================
+'                              OBJECT INTERACTIONS
+'===================================================================================
+
 Public Sub HandleSwordHit(ByVal swordShape As Shape, Optional ByVal objectPrefix As String = "Bush", Optional ByVal objectCount As Long = MAX_OBJECT_SLOTS)
     Dim ws As Worksheet
     Set ws = CurrentScreenSheet()
     If ws Is Nothing Then Exit Sub
     If swordShape Is Nothing Then Exit Sub
+    If objectCount <= 0 Then Exit Sub
+
+    Dim slotLimit As Long
+    slotLimit = objectCount
+    If slotLimit > MAX_OBJECT_SLOTS Then
+        slotLimit = MAX_OBJECT_SLOTS
+    End If
 
     Dim hits As Collection
     Set hits = New Collection
 
-    Dim index As Long
-    For index = 1 To objectCount
+    Dim slotIndex As Long
+    For slotIndex = 1 To slotLimit
         Dim targetName As String
-        targetName = objectPrefix & CStr(index)
+        targetName = objectPrefix & CStr(slotIndex)
         Dim targetShape As Shape
         Set targetShape = ShapeIfExists(ws, targetName)
 
@@ -54,14 +64,14 @@ Public Sub HandleSwordHit(ByVal swordShape As Shape, Optional ByVal objectPrefix
                 hits.Add targetName
             End If
         End If
-    Next index
+    Next slotIndex
 
     Dim nameVariant As Variant
     For Each nameVariant In hits
         ResetSingleObject ws, CStr(nameVariant)
     Next nameVariant
 
-    ForceRefresh
+    ForceObjectRefresh
 End Sub
 
 Public Sub ResetObjects(Optional ByVal target As String = "All", Optional ByVal objectPrefix As String = "Bush", Optional ByVal objectCount As Long = MAX_OBJECT_SLOTS)
@@ -70,15 +80,23 @@ Public Sub ResetObjects(Optional ByVal target As String = "All", Optional ByVal 
     If ws Is Nothing Then Exit Sub
 
     If UCase$(target) = "ALL" Then
-        Dim index As Long
-        For index = 1 To objectCount
-            ResetSingleObject ws, objectPrefix & CStr(index)
-        Next index
+        If objectCount <= 0 Then Exit Sub
+
+        Dim slotLimit As Long
+        slotLimit = objectCount
+        If slotLimit > MAX_OBJECT_SLOTS Then
+            slotLimit = MAX_OBJECT_SLOTS
+        End If
+
+        Dim slotIndex As Long
+        For slotIndex = 1 To slotLimit
+            ResetSingleObject ws, objectPrefix & CStr(slotIndex)
+        Next slotIndex
     Else
         ResetSingleObject ws, target
     End If
 
-    ForceRefresh
+    ForceObjectRefresh
 End Sub
 
 Public Sub PositionObject(ByVal objectName As String, ByVal anchorAddress As String, Optional ByVal fillValue As Variant)
@@ -104,7 +122,7 @@ Public Sub PositionObject(ByVal objectName As String, ByVal anchorAddress As Str
         FillObjectArea anchorCell, fillValue
     End If
 
-    ForceRefresh
+    ForceObjectRefresh
 End Sub
 
 Public Sub PositionMultiple(ByVal objectType As String, ParamArray locations() As Variant)
@@ -112,23 +130,27 @@ Public Sub PositionMultiple(ByVal objectType As String, ParamArray locations() A
     Set ws = CurrentScreenSheet()
     If ws Is Nothing Then Exit Sub
 
-    Dim index As Long
-    For index = 0 To MAX_OBJECT_SLOTS - 1
+    Dim slotIndex As Long
+    For slotIndex = 1 To MAX_OBJECT_SLOTS
         Dim shapeName As String
-        shapeName = objectType & CStr(index + 1)
+        shapeName = objectType & CStr(slotIndex)
 
         Dim locationValue As String
-        If index <= UBound(locations) Then
-            locationValue = CStr(locations(index))
+        If slotIndex - 1 <= UBound(locations) Then
+            locationValue = CStr(locations(slotIndex - 1))
         Else
             locationValue = ""
         End If
 
         AlignObject ws, shapeName, locationValue
-    Next index
+    Next slotIndex
 
-    ForceRefresh
+    ForceObjectRefresh
 End Sub
+
+'===================================================================================
+'                              HEART PIECE EVENTS
+'===================================================================================
 
 Public Sub CollectHeartPiece(ByVal heartIndex As Long)
     Dim ws As Worksheet
@@ -185,12 +207,12 @@ Cleanup:
     heartPiece.Visible = False
     linkWin.Visible = False
     linkSprite.Visible = True
-    ForceRefresh
+    ForceObjectRefresh
 End Sub
 
-'-----------------------------------------------------------------------------------
-'                               Helper Functions
-'-----------------------------------------------------------------------------------
+'===================================================================================
+'                              INTERNAL HELPERS
+'===================================================================================
 
 Private Sub ResetSingleObject(ByVal ws As Worksheet, ByVal shapeName As String)
     Dim objShape As Shape
@@ -291,7 +313,7 @@ Private Sub TickFrame(ByVal ws As Worksheet, Optional ByVal delayMs As Long = 25
     If delayMs > 0 Then Sleep delayMs
 End Sub
 
-Private Sub ForceRefresh()
+Private Sub ForceObjectRefresh()
     Dim previousState As Boolean
     previousState = Application.ScreenUpdating
     Application.ScreenUpdating = True

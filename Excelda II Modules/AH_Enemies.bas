@@ -125,9 +125,6 @@ Public Sub ShowEnemy(enemyType As String, slotNumber As Long)
     
     ' Spawn through manager
     manager.SpawnEnemy enemyType, slotNumber, dataRow, anchorAddress
-    
-    ' Sync legacy globals for backward compatibility
-    Call SyncEnemyToGlobals(slotNumber)
 End Sub
 
 Public Sub HideEnemy(enemyType As String, slotNumber As Long)

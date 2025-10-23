@@ -178,7 +178,11 @@ Private Sub RegisterSwordHits(ByVal swordFrame As Shape)
         enemyManager.HandleSwordHit swordFrame
     End If
 
-    Call swordHitBush(swordFrame)
+    Dim objectManager As ObjectManager
+    Set objectManager = ObjectManagerInstance()
+    If Not objectManager Is Nothing Then
+        objectManager.HandleSwordHit swordFrame
+    End If
 End Sub
 
 '####################################################################################

@@ -21,7 +21,9 @@ End Type
 
 Private m_Sprite As SpriteData
 
-' Initialization
+'===================================================================================
+'                              INITIALIZATION
+'===================================================================================
 Private Sub Class_Initialize()
     Initialize
 End Sub
@@ -30,6 +32,9 @@ Private Sub Class_Terminate()
     Destroy
 End Sub
 
+'===================================================================================
+'                              INTERNAL STATE
+'===================================================================================
 Private Sub ResetState()
     Set m_Sprite.LinkSprite = Nothing
     m_Sprite.Top = 0
@@ -43,32 +48,36 @@ Private Sub ResetState()
     m_Sprite.AnimTickCounter = 0
 End Sub
 
-Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal spriteName As String = "")
+'===================================================================================
+'                              SETUP & LIFECYCLE
+'===================================================================================
+Public Sub Initialize()
+    ResetState
+End Sub
+
+Public Sub BindLinkSprite(ByVal screenName As String, ByVal spriteName As String)
     ResetState
     If screenName = "" Or spriteName = "" Then Exit Sub
 
     On Error GoTo ErrorHandler
 
-    ' Find and set the sprite
     Set m_Sprite.LinkSprite = Sheets(screenName).Shapes(spriteName)
 
     If m_Sprite.LinkSprite Is Nothing Then
-        Err.Raise vbObjectError + 1, "SpriteManager.Initialize", "Sprite '" & spriteName & "' not found on " & screenName
+        Err.Raise vbObjectError + 1, "SpriteManager.BindLinkSprite", "Sprite '" & spriteName & "' not found on " & screenName
     End If
 
-    ' Set initial position from sprite's actual location
     m_Sprite.Top = m_Sprite.LinkSprite.Top
     m_Sprite.Left = m_Sprite.LinkSprite.Left
     m_Sprite.PrevTop = m_Sprite.Top
     m_Sprite.PrevLeft = m_Sprite.Left
 
-    ' Determine frame from sprite name (LinkDown1 = frame 1, LinkDown2 = frame 2, etc.)
     If InStr(spriteName, "1") > 0 Then
         m_Sprite.Frame = 1
     ElseIf InStr(spriteName, "2") > 0 Then
         m_Sprite.Frame = 2
     Else
-        m_Sprite.Frame = 2  ' Default to frame 2
+        m_Sprite.Frame = 2
     End If
 
     m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
@@ -81,8 +90,7 @@ Public Sub Initialize(Optional ByVal screenName As String = "", Optional ByVal s
     Exit Sub
 
 ErrorHandler:
-    ' Log error but don't crash - let caller handle it
-    Debug.Print "SpriteManager.Initialize Error: " & Err.Description
+    Debug.Print "SpriteManager.BindLinkSprite Error: " & Err.Description
     On Error GoTo 0
 End Sub
 
@@ -103,12 +111,12 @@ Public Sub Reset()
             m_Sprite.Left = m_Sprite.LinkSprite.Left
             m_Sprite.Frame = 1
             m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
-                m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
+            m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
             ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
             m_Sprite.PendingFrameName = ""
             m_Sprite.PendingHideName = ""
-                m_Sprite.PrevTop = m_Sprite.Top
-                m_Sprite.PrevLeft = m_Sprite.Left
+            m_Sprite.PrevTop = m_Sprite.Top
+            m_Sprite.PrevLeft = m_Sprite.Left
             m_Sprite.AnimTickCounter = 0
         End If
     End If
@@ -130,27 +138,30 @@ Public Property Get LinkSpriteTop() As Double
     LinkSpriteTop = m_Sprite.Top
 End Property
 
-Public Property Let LinkSpriteTop(ByVal Value As Double)
-    m_Sprite.Top = Value
+Public Property Let LinkSpriteTop(ByVal positionTop As Double)
+    m_Sprite.Top = positionTop
 End Property
 
 Public Property Get LinkSpriteLeft() As Double
     LinkSpriteLeft = m_Sprite.Left
 End Property
 
-Public Property Let LinkSpriteLeft(ByVal Value As Double)
-    m_Sprite.Left = Value
+Public Property Let LinkSpriteLeft(ByVal positionLeft As Double)
+    m_Sprite.Left = positionLeft
 End Property
 
 Public Property Get LinkSpriteFrame() As Integer
     LinkSpriteFrame = m_Sprite.Frame
 End Property
 
-Public Property Let LinkSpriteFrame(ByVal Value As Integer)
-    m_Sprite.Frame = Value
+Public Property Let LinkSpriteFrame(ByVal frameIndex As Integer)
+    m_Sprite.Frame = frameIndex
 End Property
 
-' Core sprite operations - delegates to optimized logic
+'===================================================================================
+'                              CORE SPRITE OPERATIONS
+'===================================================================================
+' movementDir/facingDir capture intent; deltaSeconds maintained for API compatibility.
 Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, ByVal moveSpeed As Double, ByVal deltaSeconds As Double)
     On Error Resume Next
     Dim gs As GameState
@@ -274,6 +285,9 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     On Error GoTo 0
 End Sub
 
+'===================================================================================
+'                              RENDERING HELPERS
+'===================================================================================
 Public Sub UpdatePosition()
     On Error Resume Next
     If m_Sprite.LinkSprite Is Nothing Then
@@ -369,6 +383,9 @@ Public Sub UpdateVisibility()
     On Error GoTo 0
 End Sub
 
+'===================================================================================
+'                              LEGACY SUPPORT UTILITIES
+'===================================================================================
 Public Sub ApplyLinkBounce(ByVal bounceSpeed As Long)
     On Error Resume Next
     If bounceSpeed <= 0 Then Exit Sub
