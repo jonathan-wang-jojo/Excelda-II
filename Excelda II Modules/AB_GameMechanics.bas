@@ -46,7 +46,9 @@ Sub myScroll(ByVal scrollDir As String)
     On Error GoTo ScreenSetupError
     Dim setupMacro As String
     setupMacro = gs.CurrentScreen
-    If setupMacro <> "" Then Application.Run setupMacro
+    If setupMacro <> "" Then
+        SceneManagerInstance().ApplyScreen setupMacro
+    End If
     
     Exit Sub
     

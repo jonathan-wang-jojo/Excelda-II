@@ -17,6 +17,7 @@ Private m_SpriteManager As SpriteManager
 Private m_FriendlyManager As FriendlyManager
 Private m_ObjectManager As ObjectManager
 Private m_SpecialEventManager As SpecialEventManager
+Private m_SceneManager As SceneManager
 
 '------------------------------- GameState -------------------------------
 Public Function GameStateInstance() As GameState
@@ -81,6 +82,15 @@ Public Function SpecialEventManagerInstance() As SpecialEventManager
     Set SpecialEventManagerInstance = m_SpecialEventManager
 End Function
 
+'------------------------------- SceneManager -------------------------------
+Public Function SceneManagerInstance() As SceneManager
+    If m_SceneManager Is Nothing Then
+        Set m_SceneManager = New SceneManager
+        m_SceneManager.Initialize
+    End If
+    Set SceneManagerInstance = m_SceneManager
+End Function
+
 '------------------------------- Manager Lifecycle -------------------------------
 Public Sub ResetAllManagers()
     If Not m_GameState Is Nothing Then m_GameState.Reset
@@ -95,6 +105,9 @@ Public Sub ResetAllManagers()
     If Not m_SpecialEventManager Is Nothing Then
         m_SpecialEventManager.Reset
     End If
+    If Not m_SceneManager Is Nothing Then
+        m_SceneManager.Reset
+    End If
 End Sub
 
 Public Sub DestroyAllManagers()
@@ -105,5 +118,6 @@ Public Sub DestroyAllManagers()
     If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Destroy: Set m_FriendlyManager = Nothing
     If Not m_ObjectManager Is Nothing Then m_ObjectManager.Destroy: Set m_ObjectManager = Nothing
     If Not m_SpecialEventManager Is Nothing Then m_SpecialEventManager.Destroy: Set m_SpecialEventManager = Nothing
+    If Not m_SceneManager Is Nothing Then m_SceneManager.Destroy: Set m_SceneManager = Nothing
 End Sub
 '===================================================================================

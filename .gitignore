@@ -1,11 +1,14 @@
 # old/legacy files
-"Legacy files"/
+"Legacy Files"/
 *.xls
 *.xlsx
 
 # Copilot config
 .github/
+.todo/
+.vscode/
 *.md
+
 
 # temp/sys files
 *.temp

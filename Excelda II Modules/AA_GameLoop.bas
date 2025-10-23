@@ -13,6 +13,7 @@ Private m_GameState As GameState
 Private m_SpriteManager As SpriteManager
 Private m_ActionManager As ActionManager
 Private m_EnemyManager As EnemyManager
+Private m_SceneManager As SceneManager
 Private m_PreviousScreenUpdating As Boolean
 Private m_PreviousEnableEvents As Boolean
 Private m_PreviousDisplayStatusBar As Boolean
@@ -54,12 +55,15 @@ Private Sub StartGame()
     Set m_SpriteManager = SpriteManagerInstance()
     Set m_ActionManager = ActionManagerInstance()
     Set m_EnemyManager = EnemyManagerInstance()
+    Set m_SceneManager = SceneManagerInstance()
     
     ' Setup starting state
     Dim screen As String
     screen = ActiveSheet.Name
     If screen = SHEET_TITLE Then screen = SHEET_GAME
     Sheets(screen).Activate
+
+    m_SceneManager.ActivateSceneBySheet screen
 
     EnterGameMode
     DisableExcelNavigation
@@ -93,7 +97,9 @@ Private Sub StartGame()
     Call alignScreen
     On Error Resume Next
     Call calculateScreenLocation("", direction)
-    If m_GameState.CurrentScreen <> "" Then Application.Run m_GameState.CurrentScreen
+    If m_GameState.CurrentScreen <> "" Then
+        m_SceneManager.ApplyScreen m_GameState.CurrentScreen
+    End If
     On Error GoTo ErrorHandler
     Application.ScreenUpdating = False
     m_IsRunning = True
@@ -537,7 +543,9 @@ Sub Relocate(ByVal code As String)
     
     On Error GoTo ScreenSetupError
     setupMacro = m_GameState.CurrentScreen
-    If setupMacro <> "" Then Application.Run setupMacro
+    If setupMacro <> "" Then
+        m_SceneManager.ApplyScreen setupMacro
+    End If
     Exit Sub
     
 ScreenSetupError:

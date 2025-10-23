@@ -6,6 +6,7 @@ Option Explicit
 
 Private Type GameData
     CurrentScreen As String
+    CurrentSceneId As String
     GameSpeed As Long
     IsPaused As Boolean
     MoveDir As String
@@ -50,6 +51,7 @@ Public Sub Reset()
     m_Game.ScreenSetUpTimer = 0
     m_Game.TriggerCellAddress = ""
     m_Game.CurrentScreen = ""
+    m_Game.CurrentSceneId = ""
     m_Game.FrameDeltaSeconds = DEFAULT_FRAME_SECONDS
     m_Game.LastFrameTimestamp = Timer
 End Sub
@@ -71,6 +73,14 @@ End Property
 
 Public Property Let CurrentScreen(ByVal newScreen As String)
     m_Game.CurrentScreen = newScreen
+End Property
+
+Public Property Get CurrentSceneId() As String
+    CurrentSceneId = m_Game.CurrentSceneId
+End Property
+
+Public Property Let CurrentSceneId(ByVal newScene As String)
+    m_Game.CurrentSceneId = newScene
 End Property
 
 Public Property Get GameSpeed() As Long
