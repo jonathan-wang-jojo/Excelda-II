@@ -124,7 +124,7 @@ Private Sub HandleScrollTrigger(ByVal tileCode As String)
     tileCode = Trim$(tileCode)
     If Len(tileCode) < 2 Then Exit Sub
 
-    scrollCode = Left$(tileCode, 2)
+    scrollCode = Mid$(tileCode, 1, 2)
 
     Select Case scrollCode
         Case "S1": myScroll SCROLL_CODE_RIGHT

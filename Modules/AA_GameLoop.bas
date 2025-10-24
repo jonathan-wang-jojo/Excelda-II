@@ -442,29 +442,37 @@ Private Sub HandleTriggers()
     m_GameState.CodeCell = code
     Sheets(SHEET_DATA).Range("C18").Value = m_GameState.LinkCellAddress
     
-    ' Parse: S1XXXXETOC02DR484
-    '        ││    ││      │└─ Cell (R484)
-    '        ││    ││      └─── Direction (D)
-    '        ││    │└────────── Enemy code (ETOC02) or padding (XXXXXX)
-    '        ││    └─────────── Action (ET/RL/SE/FL/PU)
-    '        │└──────────────── Scroll direction (1=Right,2=Left,3=Down,4=Up)
-    '        └───────────────── Scroll indicator (S=scroll, X=no scroll)
-    
-    Dim scrollInd As String: scrollInd = VBA.Left$(code, 1)
-    Dim scrollDir As String: scrollDir = Mid$(code, 2, 1)
-    Dim actionInd As String: actionInd = Mid$(code, 3, 2)
-    
+    ' Parse trigger payload according to legacy format
+    Dim scrollInd As String
+    Dim scrollDir As String
+    Dim fallInd As String
+    Dim actionInd As String
+    Dim enemyType As String
+    Dim enemySlot As String
+    Dim actionDir As String
+    Dim actionCell As String
+
+    ParseTriggerCode code, scrollInd, scrollDir, fallInd, actionInd, enemyType, enemySlot, actionDir, actionCell
+
+    If Not m_GameState Is Nothing Then
+        m_GameState.TriggerCellAddress = actionCell
+    End If
+
     ' Execute scroll
-    If scrollInd = "S" Then
-    Call myScroll(scrollDir)
-    m_ActionManager.Initialize
+    If scrollInd = "S" And scrollDir <> "" Then
+        Call myScroll(scrollDir)
+        m_ActionManager.Initialize
         m_SpriteManager.UpdateVisibility
     End If
-    
-    ' Execute action
-    Select Case actionInd
+
+    ' Execute fall/jump indicators
+    Select Case fallInd
         Case "FL": Call Falling
         Case "JD": Call JumpDown
+    End Select
+
+    ' Execute action
+    Select Case actionInd
         Case "PU": ' Push - not implemented yet
         Case "RL": Call Relocate(code): Exit Sub
         Case "ET": Call EnemyTrigger(code)
@@ -527,25 +535,47 @@ End Function
 Sub Relocate(ByVal code As String)
     On Error GoTo RelocateError
 
+    Dim trimmedCode As String
+    Dim scrollIndicator As String
     Dim scrollDir As String
+    Dim fallIndicator As String
+    Dim actionIndicator As String
+    Dim enemyType As String
+    Dim enemySlot As String
     Dim offsetDir As String
     Dim targetAddress As String
+    Dim actionCell As String
     Dim mapSheet As Worksheet
     Dim targetCell As Range
     Dim gs As GameState
 
-    If Len(Trim$(code)) > 0 And Left$(Trim$(code), 1) <> "S" Then
-        Call RelocateToSimpleLocation(code)
+    trimmedCode = Trim$(code)
+    If trimmedCode <> "" Then
+        If Mid$(trimmedCode, 1, 1) <> "S" Then
+            Call RelocateToSimpleLocation(trimmedCode)
+            Exit Sub
+        End If
+    End If
+
+    ParseTriggerCode trimmedCode, scrollIndicator, scrollDir, fallIndicator, actionIndicator, enemyType, enemySlot, offsetDir, actionCell
+
+    If scrollIndicator <> "S" And trimmedCode <> "" And actionCell = "" Then
+        Call RelocateToSimpleLocation(trimmedCode)
         Exit Sub
     End If
 
     Set gs = GameStateInstance()
     If gs Is Nothing Then Exit Sub
 
-    scrollDir = Mid$(code, 2, 1)
-    offsetDir = Mid$(code, 13, 1)
-    targetAddress = Mid$(code, 14)
-    If targetAddress = "" Then targetAddress = Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value
+    If actionCell = "" Then
+        actionCell = gs.TriggerCellAddress
+    End If
+    If actionCell = "" Then
+        actionCell = Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value
+    End If
+
+    targetAddress = actionCell
+    offsetDir = UpperCaseText(offsetDir)
 
     If gs.CurrentScreen <> "" Then
         On Error Resume Next
@@ -659,13 +689,14 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
     Dim bangPos As Long
     bangPos = InStr(trimmed, "!")
     If bangPos > 0 Then
-        sheetPart = Replace$(Left$(trimmed, bangPos - 1), "'", "")
+    sheetPart = Replace(Mid$(trimmed, 1, bangPos - 1), "'", "")
         addressPart = Mid$(trimmed, bangPos + 1)
     Else
         addressPart = trimmed
     End If
 
     Dim candidateSheet As Worksheet
+    Dim allowDirectRange As Boolean
     If sheetPart <> "" Then
         On Error Resume Next
         Set candidateSheet = Sheets(sheetPart)
@@ -673,7 +704,9 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
     End If
     If candidateSheet Is Nothing Then Set candidateSheet = defaultSheet
 
-    If Not candidateSheet Is Nothing Then
+    allowDirectRange = ShouldAttemptDirectAddress(addressPart)
+
+    If allowDirectRange And Not candidateSheet Is Nothing Then
         On Error Resume Next
         Set ResolveTargetCell = candidateSheet.Range(addressPart)
         On Error GoTo 0
@@ -684,13 +717,50 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
     Set found = FindCellValueAcrossSheets(trimmed, candidateSheet)
     If found Is Nothing Then
         Dim cellId As String
-        cellId = Right$(trimmed, 4)
+        If Len(trimmed) <= 4 Then
+            cellId = trimmed
+        Else
+            cellId = Mid$(trimmed, Len(trimmed) - 3)
+        End If
         If cellId <> "" And cellId <> trimmed Then
             Set found = FindCellValueAcrossSheets(cellId, candidateSheet)
         End If
     End If
 
     Set ResolveTargetCell = found
+End Function
+
+Private Function ShouldAttemptDirectAddress(ByVal addressPart As String) As Boolean
+    Dim trimmed As String
+    trimmed = Trim$(addressPart)
+    If trimmed = "" Then Exit Function
+
+    Dim idx As Long
+    Dim firstDigit As Long
+    For idx = 1 To Len(trimmed)
+        Dim ch As String
+        ch = Mid$(trimmed, idx, 1)
+        If ch >= "0" And ch <= "9" Then
+            firstDigit = idx
+            Exit For
+        End If
+    Next idx
+
+    If firstDigit = 0 Then
+        ' No digits found; treat as name that requires lookup
+        ShouldAttemptDirectAddress = False
+        Exit Function
+    End If
+
+    Dim digitPart As String
+    digitPart = Mid$(trimmed, firstDigit)
+
+    If Len(digitPart) > 1 And Left$(digitPart, 1) = "0" Then
+        ' Leading zeros indicate code identifiers like X014; skip direct range
+        ShouldAttemptDirectAddress = False
+    Else
+        ShouldAttemptDirectAddress = True
+    End If
 End Function
 
 Private Function FindCellValueAcrossSheets(ByVal lookupValue As String, ByVal preferredSheet As Worksheet) As Range
@@ -721,6 +791,63 @@ Private Function FindInWorksheet(ByVal ws As Worksheet, ByVal lookupValue As Str
     Set FindInWorksheet = ws.Cells.Find(What:=lookupValue, After:=ws.Cells(1, 1), LookIn:=xlValues, _
         LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=True)
     On Error GoTo 0
+End Function
+
+Private Sub ParseTriggerCode(ByVal rawCode As String, _
+                             ByRef scrollIndicator As String, _
+                             ByRef scrollDir As String, _
+                             ByRef fallIndicator As String, _
+                             ByRef actionIndicator As String, _
+                             ByRef enemyType As String, _
+                             ByRef enemySlot As String, _
+                             ByRef actionDirection As String, _
+                             ByRef actionCell As String)
+    Dim payload As String
+    payload = Trim$(CStr(rawCode))
+
+    scrollIndicator = UpperCaseText(SliceRange(payload, 1, 1))
+    scrollDir = UpperCaseText(SliceRange(payload, 2, 1))
+    fallIndicator = UpperCaseText(SliceRange(payload, 3, 2))
+    actionIndicator = UpperCaseText(SliceRange(payload, 7, 2))
+    enemyType = UpperCaseText(SliceRange(payload, 9, 2))
+    enemySlot = UpperCaseText(SliceRange(payload, 11, 2))
+    actionDirection = UpperCaseText(SliceRange(payload, 13, 1))
+
+    Dim rawActionCell As String
+    If Len(payload) >= 14 Then
+        rawActionCell = SliceRange(payload, 14)
+    End If
+
+    If Trim$(rawActionCell) = "" Then
+        Dim actionPos As Long
+        actionPos = InStr(payload, actionIndicator)
+        If actionPos > 0 Then
+            Dim fallbackStart As Long
+            fallbackStart = actionPos + Len(actionIndicator)
+            rawActionCell = SliceRange(payload, fallbackStart)
+        End If
+    End If
+
+    actionCell = Trim$(rawActionCell)
+End Sub
+
+Private Function SliceRange(ByVal source As String, ByVal startPos As Long, Optional ByVal extractLength As Long = 0) As String
+    Dim srcLen As Long
+    srcLen = Len(source)
+    If startPos <= 0 Or startPos > srcLen Then Exit Function
+
+    If extractLength <= 0 Then
+        SliceRange = Mid$(source, startPos)
+    Else
+        If startPos + extractLength - 1 > srcLen Then
+            extractLength = srcLen - startPos + 1
+        End If
+        SliceRange = Mid$(source, startPos, extractLength)
+    End If
+End Function
+
+Private Function UpperCaseText(ByVal value As String) As String
+    UpperCaseText = UCase$(Trim$(value))
 End Function
 
 Private Sub DisableExcelNavigation()

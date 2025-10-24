@@ -1,3 +1,4 @@
+
 'Attribute VB_Name = "AB_GameMechanics"
 Option Explicit
 
@@ -21,16 +22,14 @@ Sub myScroll(ByVal scrollDir As String)
     primaryDir = ResolveScrollDirection(scrollCode, gs.MoveDir, gs.LastDir)
     If primaryDir = "" Then Exit Sub
 
-    ' Store previous state for rescroll suppression
-    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_CELL).Value = gs.LinkCellAddress
-    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value = primaryDir
-
-    If ShouldPreventRescroll(gs.LinkCellAddress) Then Exit Sub
+    If ShouldPreventRescroll(gs.LinkCellAddress, primaryDir) Then Exit Sub
 
     ' Perform the viewport scroll
     PerformWindowScroll scrollCode, primaryDir
 
     ' Persist scroll direction and recalc screen code
+    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_CELL).Value = gs.LinkCellAddress
+    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value = primaryDir
     Sheets(SHEET_DATA).Range(RANGE_SCROLL_DIRECTION).Value = primaryDir
     calculateScreenLocation scrollCode, primaryDir
 
@@ -70,28 +69,18 @@ Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDi
     If candidate = "" Then candidate = NormalizeDirectionCandidate(lastDir)
     If candidate = "" Then Exit Function
 
-    If InStr(candidate, "U") > 0 Then
-        ResolveScrollDirection = "U"
-    ElseIf InStr(candidate, "D") > 0 Then
-        ResolveScrollDirection = "D"
-    ElseIf InStr(candidate, "L") > 0 Then
-        ResolveScrollDirection = "L"
-    ElseIf InStr(candidate, "R") > 0 Then
-        ResolveScrollDirection = "R"
-    Else
-        ResolveScrollDirection = Left$(candidate, 1)
-    End If
+    ResolveScrollDirection = PrimaryDirectionLetter(candidate)
 End Function
 
 Private Function ScrollCodeToDirectionLetter(ByVal scrollCode As String) As String
-    Select Case Trim$(scrollCode)
-        Case SCROLL_CODE_RIGHT
+    Select Case UCase$(Trim$(scrollCode))
+        Case SCROLL_CODE_RIGHT, "R"
             ScrollCodeToDirectionLetter = "R"
-        Case SCROLL_CODE_LEFT
+        Case SCROLL_CODE_LEFT, "L"
             ScrollCodeToDirectionLetter = "L"
-        Case SCROLL_CODE_DOWN
+        Case SCROLL_CODE_DOWN, "D"
             ScrollCodeToDirectionLetter = "D"
-        Case SCROLL_CODE_UP
+        Case SCROLL_CODE_UP, "U"
             ScrollCodeToDirectionLetter = "U"
         Case Else
             ScrollCodeToDirectionLetter = ""
@@ -102,7 +91,25 @@ Private Function NormalizeDirectionCandidate(ByVal value As String) As String
     NormalizeDirectionCandidate = UCase$(Trim$(value))
 End Function
 
-Private Function ShouldPreventRescroll(ByVal currentCell As String) As Boolean
+Private Function PrimaryDirectionLetter(ByVal direction As String) As String
+    Dim normalized As String
+    normalized = NormalizeDirectionCandidate(direction)
+    If normalized = "" Then Exit Function
+
+    If InStr(normalized, "U") > 0 Then
+        PrimaryDirectionLetter = "U"
+    ElseIf InStr(normalized, "D") > 0 Then
+        PrimaryDirectionLetter = "D"
+    ElseIf InStr(normalized, "L") > 0 Then
+        PrimaryDirectionLetter = "L"
+    ElseIf InStr(normalized, "R") > 0 Then
+        PrimaryDirectionLetter = "R"
+    ElseIf Len(normalized) > 0 Then
+        PrimaryDirectionLetter = VBA.Left(normalized, 1)
+    End If
+End Function
+
+Private Function ShouldPreventRescroll(ByVal currentCell As String, ByVal newDirection As String) As Boolean
     ' Simple rescroll prevention - check if we're in same general area
     Dim previousCell As String
     Dim previousDir As String
@@ -112,11 +119,22 @@ Private Function ShouldPreventRescroll(ByVal currentCell As String) As Boolean
     previousDir = Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value
     currentDir = Sheets(SHEET_DATA).Range(RANGE_SCROLL_DIRECTION).Value
     
+    Dim normalizedNewDir As String
+    normalizedNewDir = NormalizeDirectionCandidate(newDirection)
+    Dim comparisonDir As String
+    comparisonDir = NormalizeDirectionCandidate(currentDir)
+    If normalizedNewDir <> "" Then comparisonDir = normalizedNewDir
+
+    Dim normalizedPrev As String
+    normalizedPrev = NormalizeDirectionCandidate(previousDir)
+
     ' If we're still in the same cell and direction hasn't changed, prevent rescroll
     If currentCell = previousCell Then
-        If previousDir = currentDir Or previousDir = "" Then
-            ShouldPreventRescroll = True
-            Exit Function
+        If normalizedPrev <> "" And comparisonDir <> "" Then
+            If normalizedPrev = comparisonDir Then
+                ShouldPreventRescroll = True
+                Exit Function
+            End If
         End If
     End If
     
