@@ -80,7 +80,9 @@ Public Const RANGE_SCREEN_ROW As String = "C7"
 Public Const RANGE_SCREEN_COLUMN As String = "C8"
 
 ' Scroll Constants
-Public Const SCROLL_VERTICAL As String = "1"
-Public Const SCROLL_HORIZONTAL As String = "2"
+Public Const SCROLL_CODE_RIGHT As String = "1"
+Public Const SCROLL_CODE_LEFT As String = "2"
+Public Const SCROLL_CODE_DOWN As String = "3"
+Public Const SCROLL_CODE_UP As String = "4"
 Public Const SCROLL_AMOUNT_VERTICAL As Long = 32
 Public Const SCROLL_AMOUNT_HORIZONTAL As Long = 60

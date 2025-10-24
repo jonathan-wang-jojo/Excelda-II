@@ -21,6 +21,7 @@ Private m_PreviousDisplayStatusBar As Boolean
 Private m_PreviousCalculation As XlCalculation
 Private m_InGameMode As Boolean
 Private m_IsRunning As Boolean
+Private m_MoveBlocked As Boolean
 
 '###################################################################################
 '                              ENTRY POINT
@@ -97,7 +98,7 @@ Private Sub StartGame()
     ' Align view and run screen setup
     Call alignScreen
     On Error Resume Next
-    Call calculateScreenLocation("", direction)
+    Call calculateScreenLocation("", "")
     Dim initialScreenCode As String
     initialScreenCode = m_GameState.CurrentScreenCode
     If initialScreenCode = "" Then initialScreenCode = m_GameState.CurrentScreen
@@ -257,13 +258,9 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
     If moveLeft Then newDir = newDir & "L"
     If moveRight Then newDir = newDir & "R"
     
-    ' Block movement if collision detected
+    ' Determine intended movement direction and apply buffering
     Dim attemptedDir As String
     attemptedDir = newDir
-
-    If attemptedDir <> "" And Not currentCell Is Nothing Then
-        If DirectionBlocked(attemptedDir, currentCell) Then attemptedDir = ""
-    End If
 
     If attemptedDir <> "" Then
         releaseTimer = INPUT_BUFFER_SECONDS
@@ -273,13 +270,6 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
             releaseTimer = releaseTimer - deltaSeconds
             If releaseTimer > 0# And bufferedDir <> "" Then
                 attemptedDir = bufferedDir
-                If Not currentCell Is Nothing Then
-                    If DirectionBlocked(attemptedDir, currentCell) Then
-                        attemptedDir = ""
-                        bufferedDir = ""
-                        releaseTimer = 0#
-                    End If
-                End If
             Else
                 bufferedDir = ""
                 releaseTimer = 0#
@@ -288,6 +278,15 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
             bufferedDir = ""
         End If
     End If
+
+    ' Evaluate collision state after resolving buffered intent
+    Dim blocked As Boolean
+    blocked = False
+    If attemptedDir <> "" And Not currentCell Is Nothing Then
+        blocked = DirectionBlocked(attemptedDir, currentCell)
+    End If
+
+    m_MoveBlocked = (attemptedDir <> "" And blocked)
     
     ' Update direction
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = attemptedDir
@@ -308,9 +307,16 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     Else
         facingDir = movementDir
     End If
+
+    Dim effectiveDir As String
+    If m_MoveBlocked Then
+        effectiveDir = ""
+    Else
+        effectiveDir = movementDir
+    End If
     Dim moveSpeed As Double
     moveSpeed = m_GameState.MoveSpeed
-    m_SpriteManager.UpdateFrame movementDir, facingDir, moveSpeed, deltaSeconds
+    m_SpriteManager.UpdateFrame effectiveDir, facingDir, moveSpeed, deltaSeconds
     m_SpriteManager.UpdatePosition
     m_SpriteManager.UpdateVisibility
     On Error Resume Next
@@ -322,6 +328,8 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     End If
     On Error GoTo 0
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = ""
+    m_GameState.MoveDir = ""
+    m_MoveBlocked = False
 End Sub
 
 Private Function DirectionBlocked(ByVal direction As String, ByVal baseCell As Range) As Boolean

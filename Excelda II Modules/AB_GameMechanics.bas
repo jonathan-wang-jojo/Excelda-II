@@ -9,40 +9,34 @@ Option Explicit
 
 Sub myScroll(ByVal scrollDir As String)
     On Error GoTo ErrorHandler
-    
+
     Dim gs As GameState
     Set gs = GameStateInstance()
-    
-    Dim linkDirection As String
-    linkDirection = gs.MoveDir
-    If linkDirection = "" Then
-        linkDirection = gs.LastDir
-    End If
-    
-    ' Store previous cell for rescroll detection
-    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_CELL).Value = gs.LinkCellAddress
-    
-    ' Extract primary direction for scroll
+    If gs Is Nothing Then Exit Sub
+
+    Dim scrollCode As String
+    scrollCode = Trim$(CStr(scrollDir))
+    If scrollCode = "" Then Exit Sub
+
+    ' Determine the intended scroll direction (U/D/L/R)
     Dim primaryDir As String
-    primaryDir = ExtractPrimaryDirection(linkDirection, scrollDir)
+    primaryDir = ResolveScrollDirection(scrollCode, gs.MoveDir, gs.LastDir)
     If primaryDir = "" Then Exit Sub
-    
-    ' Store scroll direction for rescroll prevention
+
+    ' Store previous state for rescroll suppression
+    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_CELL).Value = gs.LinkCellAddress
     Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value = primaryDir
-    
-    ' Check if we should prevent rescrolling
+
     If ShouldPreventRescroll(gs.LinkCellAddress) Then Exit Sub
-    
-    ' Perform the scroll
-    PerformWindowScroll scrollDir, primaryDir
-    
-    ' Update scroll state
+
+    ' Perform the viewport scroll
+    PerformWindowScroll scrollCode, primaryDir
+
+    ' Persist scroll direction and recalc screen code
     Sheets(SHEET_DATA).Range(RANGE_SCROLL_DIRECTION).Value = primaryDir
-    
-    ' Calculate and set up new screen
-    Call calculateScreenLocation(scrollDir, linkDirection)
-    
-    ' Run screen setup macro
+    calculateScreenLocation scrollCode, primaryDir
+
+    ' Execute the target screen's setup routine
     On Error GoTo ScreenSetupError
     Dim setupMacro As String
     setupMacro = gs.CurrentScreenCode
@@ -50,13 +44,13 @@ Sub myScroll(ByVal scrollDir As String)
     If setupMacro <> "" Then
         SceneManagerInstance().ApplyScreen setupMacro
     End If
-    
+
     Exit Sub
-    
+
 ScreenSetupError:
     MsgBox "Screen setup macro not found: " & setupMacro, vbCritical, "Screen Setup Error"
     Exit Sub
-    
+
 ErrorHandler:
     MsgBox "Error in myScroll: " & Err.Description, vbCritical, "Scroll Error"
 End Sub
@@ -65,31 +59,49 @@ End Sub
 '                              Helper Functions
 '###################################################################################
 
-Private Function ExtractPrimaryDirection(ByVal linkDir As String, ByVal scrollType As String) As String
-    ' Extract the primary direction based on scroll type
-    ' Returns single character: U, D, L, R, or empty string
-    
-    If scrollType = SCROLL_VERTICAL Then
-        ' Vertical scroll - check for U or D in direction
-        If InStr(linkDir, "U") > 0 Then
-            ExtractPrimaryDirection = "U"
-        ElseIf InStr(linkDir, "D") > 0 Then
-            ExtractPrimaryDirection = "D"
-        Else
-            ExtractPrimaryDirection = ""
-        End If
-    ElseIf scrollType = SCROLL_HORIZONTAL Then
-        ' Horizontal scroll - check for L or R in direction
-        If InStr(linkDir, "L") > 0 Then
-            ExtractPrimaryDirection = "L"
-        ElseIf InStr(linkDir, "R") > 0 Then
-            ExtractPrimaryDirection = "R"
-        Else
-            ExtractPrimaryDirection = ""
-        End If
-    Else
-        ExtractPrimaryDirection = ""
+Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDir As String, ByVal lastDir As String) As String
+    Dim mapped As String
+    mapped = ScrollCodeToDirectionLetter(scrollCode)
+    If mapped <> "" Then
+        ResolveScrollDirection = mapped
+        Exit Function
     End If
+
+    Dim candidate As String
+    candidate = NormalizeDirectionCandidate(moveDir)
+    If candidate = "" Then candidate = NormalizeDirectionCandidate(lastDir)
+    If candidate = "" Then Exit Function
+
+    If InStr(candidate, "U") > 0 Then
+        ResolveScrollDirection = "U"
+    ElseIf InStr(candidate, "D") > 0 Then
+        ResolveScrollDirection = "D"
+    ElseIf InStr(candidate, "L") > 0 Then
+        ResolveScrollDirection = "L"
+    ElseIf InStr(candidate, "R") > 0 Then
+        ResolveScrollDirection = "R"
+    Else
+        ResolveScrollDirection = Left$(candidate, 1)
+    End If
+End Function
+
+Private Function ScrollCodeToDirectionLetter(ByVal scrollCode As String) As String
+    Select Case Trim$(scrollCode)
+        Case SCROLL_CODE_RIGHT
+            ScrollCodeToDirectionLetter = "R"
+        Case SCROLL_CODE_LEFT
+            ScrollCodeToDirectionLetter = "L"
+        Case SCROLL_CODE_DOWN
+            ScrollCodeToDirectionLetter = "D"
+        Case SCROLL_CODE_UP
+            ScrollCodeToDirectionLetter = "U"
+        Case Else
+            ScrollCodeToDirectionLetter = ""
+    End Select
+End Function
+
+Private Function NormalizeDirectionCandidate(ByVal value As String) As String
+    NormalizeDirectionCandidate = UCase$(Trim$(value))
 End Function
 
 Private Function ShouldPreventRescroll(ByVal currentCell As String) As Boolean
@@ -113,29 +125,31 @@ Private Function ShouldPreventRescroll(ByVal currentCell As String) As Boolean
     ShouldPreventRescroll = False
 End Function
 
-Private Sub PerformWindowScroll(ByVal scrollType As String, ByVal direction As String)
-    ' Simple, unified scroll logic
-    
-    If scrollType = SCROLL_VERTICAL Then
-        If direction = "D" Then
-            ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
-        ElseIf direction = "U" Then
-            ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
-        End If
-    ElseIf scrollType = SCROLL_HORIZONTAL Then
-        If direction = "L" Then
-            ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
-        ElseIf direction = "R" Then
+Private Sub PerformWindowScroll(ByVal scrollCode As String, ByVal direction As String)
+    Select Case Trim$(scrollCode)
+        Case SCROLL_CODE_RIGHT
             ActiveWindow.SmallScroll toRight:=SCROLL_AMOUNT_HORIZONTAL
-        End If
-    End If
+        Case SCROLL_CODE_LEFT
+            ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
+        Case SCROLL_CODE_DOWN
+            ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
+        Case SCROLL_CODE_UP
+            ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
+        Case Else
+            Select Case UCase$(direction)
+                Case "R": ActiveWindow.SmallScroll toRight:=SCROLL_AMOUNT_HORIZONTAL
+                Case "L": ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
+                Case "D": ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
+                Case "U": ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
+            End Select
+    End Select
 End Sub
 
 '###################################################################################
 '                              Screen Location & Alignment
 '###################################################################################
 
-Sub calculateScreenLocation(ByVal scrollDir As String, ByVal linkDirection As String)
+Sub calculateScreenLocation(ByVal scrollDir As String, ByVal direction As String)
     On Error GoTo ErrorHandler
     
     Dim gs As GameState
@@ -153,33 +167,62 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal linkDirection As St
     Set baseCell = mapSheet.Range(gs.LinkCellAddress)
     baseRow = baseCell.Row
     baseColumn = baseCell.Column
-    
-    ' Calculate position based on scroll type
-    If scrollDir = SCROLL_VERTICAL Then
-        myColumn = baseColumn
-        ' Vertical: adjust row based on direction
-        If InStr(linkDirection, "U") > 0 Then
-            myRow = baseRow
-        ElseIf InStr(linkDirection, "D") > 0 Then
-            myRow = baseRow + 5
-        Else
-            myRow = baseRow
+
+    Dim scrollCode As String
+    scrollCode = Trim$(scrollDir)
+
+    Dim primaryDir As String
+    primaryDir = NormalizeDirectionCandidate(direction)
+    If primaryDir = "" Then
+        primaryDir = ScrollCodeToDirectionLetter(scrollCode)
+        If primaryDir = "" Then
+            primaryDir = NormalizeDirectionCandidate(gs.LastDir)
         End If
-    ElseIf scrollDir = SCROLL_HORIZONTAL Then
-        myRow = baseRow
-        ' Horizontal: adjust column based on direction
-        If InStr(linkDirection, "L") > 0 Then
-            myColumn = baseColumn - 2
-        ElseIf InStr(linkDirection, "R") > 0 Then
-            myColumn = baseColumn + 2
-        Else
-            myColumn = baseColumn
-        End If
-    Else
-        ' No scroll - use current position
-        myColumn = baseColumn
-        myRow = baseRow
     End If
+
+    myRow = baseRow
+    myColumn = baseColumn
+
+    Select Case scrollCode
+        Case SCROLL_CODE_DOWN
+            myColumn = baseColumn
+            myRow = baseRow + 5
+        Case SCROLL_CODE_UP
+            myColumn = baseColumn
+            myRow = baseRow
+        Case SCROLL_CODE_LEFT
+            myRow = baseRow
+            myColumn = baseColumn - 2
+        Case SCROLL_CODE_RIGHT
+            myRow = baseRow
+            myColumn = baseColumn + 2
+        Case ""
+            myColumn = baseColumn
+            myRow = baseRow
+        Case Else
+            Select Case primaryDir
+                Case "D"
+                    myColumn = baseColumn
+                    myRow = baseRow + 5
+                Case "U"
+                    myColumn = baseColumn
+                    myRow = baseRow
+                Case "L"
+                    myRow = baseRow
+                    myColumn = baseColumn - 2
+                Case "R"
+                    myRow = baseRow
+                    myColumn = baseColumn + 2
+                Case Else
+                    myColumn = baseColumn
+                    myRow = baseRow
+            End Select
+    End Select
+
+    If myColumn < 1 Then myColumn = 1
+    If myRow < 1 Then myRow = 1
+    If myColumn > mapSheet.Columns.Count Then myColumn = mapSheet.Columns.Count
+    If myRow > mapSheet.Rows.Count Then myRow = mapSheet.Rows.Count
     
     ' Get screen identifiers from calculated position
     Dim rowLabel As String
