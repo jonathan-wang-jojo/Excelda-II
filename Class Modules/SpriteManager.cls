@@ -334,7 +334,15 @@ Public Sub UpdateVisibility()
     If wsGame Is Nothing And Not m_Sprite.LinkSprite Is Nothing Then
         Set wsGame = m_Sprite.LinkSprite.Parent
     End If
-    If wsGame Is Nothing Then Exit Sub
+    If wsGame Is Nothing Then GoTo Cleanup
+
+    Dim previousScreenUpdating As Boolean
+    Dim restoreScreenUpdating As Boolean
+    previousScreenUpdating = Application.ScreenUpdating
+    If previousScreenUpdating Then
+        Application.ScreenUpdating = False
+        restoreScreenUpdating = True
+    End If
 
     Dim targetName As String
     Dim previousName As String
@@ -353,13 +361,12 @@ Public Sub UpdateVisibility()
     End If
 
     If targetName = "" Then
-        If pendingHide <> "" And Not wsGame Is Nothing Then
+        If pendingHide <> "" Then
             HideFrame wsGame, pendingHide
             pendingHide = ""
             m_Sprite.PendingHideName = ""
         End If
-        On Error GoTo 0
-        Exit Sub
+        GoTo Cleanup
     End If
 
     If m_Sprite.LastFrameShape = "" Then
@@ -376,8 +383,7 @@ Public Sub UpdateVisibility()
                     m_Sprite.PendingHideName = ""
                 End If
             End If
-            On Error GoTo 0
-            Exit Sub
+            GoTo Cleanup
         End If
     End If
 
@@ -402,6 +408,8 @@ Public Sub UpdateVisibility()
         m_Sprite.PendingHideName = ""
     End If
 
+Cleanup:
+    If restoreScreenUpdating Then Application.ScreenUpdating = previousScreenUpdating
     On Error GoTo 0
 End Sub
 

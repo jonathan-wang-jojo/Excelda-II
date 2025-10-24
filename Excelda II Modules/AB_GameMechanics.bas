@@ -45,7 +45,8 @@ Sub myScroll(ByVal scrollDir As String)
     ' Run screen setup macro
     On Error GoTo ScreenSetupError
     Dim setupMacro As String
-    setupMacro = gs.CurrentScreen
+    setupMacro = gs.CurrentScreenCode
+    If setupMacro = "" Then setupMacro = gs.CurrentScreen
     If setupMacro <> "" Then
         SceneManagerInstance().ApplyScreen setupMacro
     End If
@@ -181,12 +182,22 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal linkDirection As St
     End If
     
     ' Get screen identifiers from calculated position
-    Dim myRowValue As String, myColumnValue As String
-    myRowValue = CStr(mapSheet.Cells(myRow, 7).Value)
-    myColumnValue = CStr(mapSheet.Cells(1, myColumn).Value)
-    
-    ' Set current screen
-    gs.CurrentScreen = myRowValue & myColumnValue
+    Dim rowLabel As String
+    Dim columnLabel As String
+    rowLabel = Trim$(CStr(mapSheet.Cells(myRow, 7).Value))
+    columnLabel = Trim$(CStr(mapSheet.Cells(1, myColumn).Value))
+
+    Dim screenCode As String
+    screenCode = UCase$(Trim$(rowLabel & columnLabel))
+
+    gs.CurrentScreenCode = screenCode
+
+    On Error Resume Next
+    Sheets(SHEET_DATA).Range(RANGE_SCREEN_ROW).Value = rowLabel
+    Sheets(SHEET_DATA).Range(RANGE_SCREEN_COLUMN).Value = columnLabel
+    On Error GoTo ErrorHandler
+
+    ViewportManagerInstance().FocusOnScreen screenCode
     
     Exit Sub
     
@@ -197,24 +208,8 @@ End Sub
 Sub alignScreen()
     On Error GoTo ErrorHandler
     
-    Dim gs As GameState
-    Dim mapSheet As Worksheet
-    Dim linkCell As Range
-    Dim offsetRow As Long, offsetColumn As Long
-    Dim topLeft As Range
-    
-    Set gs = GameStateInstance()
-    If gs.CurrentScreen = "" Or gs.LinkCellAddress = "" Then Exit Sub
-    
-    Set mapSheet = Sheets(gs.CurrentScreen)
-    Set linkCell = mapSheet.Range(gs.LinkCellAddress)
-    
-    offsetRow = CLng(Val(mapSheet.Cells(linkCell.Row, 8).Value))
-    offsetColumn = CLng(Val(mapSheet.Cells(2, linkCell.Column).Value))
-    
-    Set topLeft = linkCell.Offset(-offsetRow + 1, -offsetColumn + 1)
-    mapSheet.Activate
-    Application.GoTo topLeft, True
+    ViewportManagerInstance().AlignToLink
+    ViewportManagerInstance().RefreshVisibleDimensions
     
     Exit Sub
     

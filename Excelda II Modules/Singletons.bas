@@ -18,6 +18,7 @@ Private m_FriendlyManager As FriendlyManager
 Private m_ObjectManager As ObjectManager
 Private m_SpecialEventManager As SpecialEventManager
 Private m_SceneManager As SceneManager
+Private m_ViewportManager As ViewportManager
 
 '------------------------------- GameState -------------------------------
 Public Function GameStateInstance() As GameState
@@ -91,6 +92,15 @@ Public Function SceneManagerInstance() As SceneManager
     Set SceneManagerInstance = m_SceneManager
 End Function
 
+'------------------------------- ViewportManager -------------------------------
+Public Function ViewportManagerInstance() As ViewportManager
+    If m_ViewportManager Is Nothing Then
+        Set m_ViewportManager = New ViewportManager
+        m_ViewportManager.Initialize
+    End If
+    Set ViewportManagerInstance = m_ViewportManager
+End Function
+
 '------------------------------- Manager Lifecycle -------------------------------
 Public Sub ResetAllManagers()
     If Not m_GameState Is Nothing Then m_GameState.Reset
@@ -108,6 +118,9 @@ Public Sub ResetAllManagers()
     If Not m_SceneManager Is Nothing Then
         m_SceneManager.Reset
     End If
+    If Not m_ViewportManager Is Nothing Then
+        m_ViewportManager.Reset
+    End If
 End Sub
 
 Public Sub DestroyAllManagers()
@@ -119,5 +132,6 @@ Public Sub DestroyAllManagers()
     If Not m_ObjectManager Is Nothing Then m_ObjectManager.Destroy: Set m_ObjectManager = Nothing
     If Not m_SpecialEventManager Is Nothing Then m_SpecialEventManager.Destroy: Set m_SpecialEventManager = Nothing
     If Not m_SceneManager Is Nothing Then m_SceneManager.Destroy: Set m_SceneManager = Nothing
+    If Not m_ViewportManager Is Nothing Then m_ViewportManager.Destroy: Set m_ViewportManager = Nothing
 End Sub
 '===================================================================================

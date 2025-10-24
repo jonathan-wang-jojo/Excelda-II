@@ -78,6 +78,10 @@ Public Sub ApplyScreen(ByVal screenCode As String)
         SwitchScene scene
     End If
 
+    On Error Resume Next
+    ViewportManagerInstance().FocusOnScreen code
+    On Error GoTo 0
+
     scene.ApplyScreenLayout code
 End Sub
 
@@ -95,7 +99,14 @@ Public Sub ApplyScreenForScene(ByVal sceneId As String, ByVal screenCode As Stri
         SwitchScene scene
     End If
 
-    scene.ApplyScreenLayout NormalizeScreenCode(screenCode)
+    Dim normalizedCode As String
+    normalizedCode = NormalizeScreenCode(screenCode)
+
+    On Error Resume Next
+    ViewportManagerInstance().FocusOnScreen normalizedCode
+    On Error GoTo 0
+
+    scene.ApplyScreenLayout normalizedCode
 End Sub
 
 Public Property Get CurrentSceneId() As String

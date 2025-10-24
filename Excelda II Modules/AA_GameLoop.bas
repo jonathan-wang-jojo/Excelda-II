@@ -98,8 +98,11 @@ Private Sub StartGame()
     Call alignScreen
     On Error Resume Next
     Call calculateScreenLocation("", direction)
-    If m_GameState.CurrentScreen <> "" Then
-        m_SceneManager.ApplyScreen m_GameState.CurrentScreen
+    Dim initialScreenCode As String
+    initialScreenCode = m_GameState.CurrentScreenCode
+    If initialScreenCode = "" Then initialScreenCode = m_GameState.CurrentScreen
+    If initialScreenCode <> "" Then
+        m_SceneManager.ApplyScreen initialScreenCode
     End If
     On Error GoTo ErrorHandler
     Application.ScreenUpdating = False
@@ -514,58 +517,54 @@ End Function
 
 Sub Relocate(ByVal code As String)
     On Error GoTo RelocateError
-    
+
     Dim scrollDir As String
     Dim offsetDir As String
     Dim targetAddress As String
     Dim mapSheet As Worksheet
     Dim targetCell As Range
-    Dim setupMacro As String
+    Dim gs As GameState
 
     If Len(Trim$(code)) > 0 And Left$(Trim$(code), 1) <> "S" Then
         Call RelocateToSimpleLocation(code)
         Exit Sub
     End If
-    
+
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+
     scrollDir = Mid$(code, 2, 1)
     offsetDir = Mid$(code, 13, 1)
     targetAddress = Mid$(code, 14)
     If targetAddress = "" Then targetAddress = Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value
-    
-    Set mapSheet = Sheets(m_GameState.CurrentScreen)
-    Set targetCell = mapSheet.Range(targetAddress)
+
+    If gs.CurrentScreen <> "" Then
+        On Error Resume Next
+        Set mapSheet = Sheets(gs.CurrentScreen)
+        On Error GoTo RelocateError
+    End If
+
+    Set targetCell = ResolveTargetCell(targetAddress, mapSheet)
     If targetCell Is Nothing Then Err.Raise vbObjectError + 101, "Relocate", "Target cell not found: " & targetAddress
-    
+
+    Set mapSheet = targetCell.Worksheet
+    gs.CurrentScreen = mapSheet.Name
+
     Select Case offsetDir
         Case "U": Set targetCell = targetCell.Offset(-1, 0)
         Case "D": Set targetCell = targetCell.Offset(1, 0)
         Case "L": Set targetCell = targetCell.Offset(0, -1)
         Case "R": Set targetCell = targetCell.Offset(0, 2)
     End Select
-    
+
     m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
     m_SpriteManager.LinkSpriteLeft = targetCell.Left
     m_SpriteManager.LinkSpriteTop = targetCell.Top
-    m_GameState.LinkCellAddress = targetCell.Address
-    Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = m_GameState.LinkCellAddress
-    m_GameState.CodeCell = ""
-    
-    Call alignScreen
-    Call calculateScreenLocation(scrollDir, offsetDir)
-    m_ActionManager.Initialize
-    m_SpriteManager.UpdateVisibility
-    
-    On Error GoTo ScreenSetupError
-    setupMacro = m_GameState.CurrentScreen
-    If setupMacro <> "" Then
-        m_SceneManager.ApplyScreen setupMacro
-    End If
+    gs.LinkCellAddress = targetCell.Address
+
+    FinalizeRelocation scrollDir, offsetDir
     Exit Sub
-    
-ScreenSetupError:
-    MsgBox "Screen setup macro not found: " & setupMacro, vbCritical, "Screen Setup Error"
-    Exit Sub
-    
+
 RelocateError:
     MsgBox "Error in Relocate: " & Err.Description & " (Error " & Err.Number & ")", vbCritical, "Relocate Error"
 End Sub
@@ -576,53 +575,144 @@ Private Sub RelocateToSimpleLocation(ByVal location As String)
     If location = "" Then Exit Sub
 
     Dim gs As GameState
-    If m_GameState Is Nothing Then
-        Set gs = GameStateInstance()
-    Else
-        Set gs = m_GameState
-    End If
-    If gs Is Nothing Or gs.CurrentScreen = "" Then Exit Sub
-
     Dim ws As Worksheet
-    Set ws = Sheets(gs.CurrentScreen)
-
-    Dim dataSheet As Worksheet
-    Set dataSheet = Sheets(SHEET_DATA)
-
     Dim targetCell As Range
-    On Error Resume Next
-    Set targetCell = ws.Range(location)
-    On Error GoTo RelocateSimpleError
 
-    If targetCell Is Nothing Then
-        Dim cellId As String
-        cellId = Right$(location, 4)
-        If cellId <> "" Then
-            Set targetCell = ws.Cells.Find(What:=cellId, After:=ws.Cells(1, 1), LookIn:=xlFormulas, _
-                LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=True)
-        End If
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+
+    If gs.CurrentScreen <> "" Then
+        On Error Resume Next
+        Set ws = Sheets(gs.CurrentScreen)
+        On Error GoTo RelocateSimpleError
     End If
 
+    Set targetCell = ResolveTargetCell(location, ws)
     If targetCell Is Nothing Then Exit Sub
+
+    Set ws = targetCell.Worksheet
+    gs.CurrentScreen = ws.Name
 
     m_SpriteManager.AlignSprites targetCell.Left, targetCell.Top
     m_SpriteManager.LinkSpriteLeft = targetCell.Left
     m_SpriteManager.LinkSpriteTop = targetCell.Top
 
     gs.LinkCellAddress = targetCell.Address
-    dataSheet.Range(RANGE_CURRENT_CELL).Value = gs.LinkCellAddress
-    gs.CodeCell = ""
 
-    Call alignScreen
-    On Error Resume Next
-    Call calculateScreenLocation("", "")
-    On Error GoTo RelocateSimpleError
-
+    FinalizeRelocation "", ""
     Exit Sub
 
 RelocateSimpleError:
     Debug.Print "RelocateToSimpleLocation error: " & Err.Description
 End Sub
+
+Private Sub FinalizeRelocation(ByVal scrollDir As String, ByVal offsetDir As String)
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+
+    Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = gs.LinkCellAddress
+    Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = ""
+    gs.MoveDir = ""
+    gs.CodeCell = ""
+
+    alignScreen
+
+    On Error Resume Next
+    calculateScreenLocation scrollDir, offsetDir
+    On Error GoTo 0
+
+    If Not m_ActionManager Is Nothing Then m_ActionManager.Initialize
+    If Not m_SpriteManager Is Nothing Then m_SpriteManager.UpdateVisibility
+
+    Dim setupMacro As String
+    setupMacro = gs.CurrentScreenCode
+    If setupMacro = "" Then setupMacro = gs.CurrentScreen
+    If setupMacro <> "" And Not m_SceneManager Is Nothing Then
+        On Error GoTo ScreenSetupError
+        m_SceneManager.ApplyScreen setupMacro
+        On Error GoTo 0
+    End If
+    Exit Sub
+
+ScreenSetupError:
+    MsgBox "Screen setup macro not found: " & setupMacro, vbCritical, "Screen Setup Error"
+    On Error GoTo 0
+End Sub
+
+Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet As Worksheet) As Range
+    Dim trimmed As String
+    trimmed = Trim$(location)
+    If trimmed = "" Then Exit Function
+
+    Dim sheetPart As String
+    Dim addressPart As String
+    Dim bangPos As Long
+    bangPos = InStr(trimmed, "!")
+    If bangPos > 0 Then
+        sheetPart = Replace$(Left$(trimmed, bangPos - 1), "'", "")
+        addressPart = Mid$(trimmed, bangPos + 1)
+    Else
+        addressPart = trimmed
+    End If
+
+    Dim candidateSheet As Worksheet
+    If sheetPart <> "" Then
+        On Error Resume Next
+        Set candidateSheet = Sheets(sheetPart)
+        On Error GoTo 0
+    End If
+    If candidateSheet Is Nothing Then Set candidateSheet = defaultSheet
+
+    If Not candidateSheet Is Nothing Then
+        On Error Resume Next
+        Set ResolveTargetCell = candidateSheet.Range(addressPart)
+        On Error GoTo 0
+        If Not ResolveTargetCell Is Nothing Then Exit Function
+    End If
+
+    Dim found As Range
+    Set found = FindCellValueAcrossSheets(trimmed, candidateSheet)
+    If found Is Nothing Then
+        Dim cellId As String
+        cellId = Right$(trimmed, 4)
+        If cellId <> "" And cellId <> trimmed Then
+            Set found = FindCellValueAcrossSheets(cellId, candidateSheet)
+        End If
+    End If
+
+    Set ResolveTargetCell = found
+End Function
+
+Private Function FindCellValueAcrossSheets(ByVal lookupValue As String, ByVal preferredSheet As Worksheet) As Range
+    Dim match As Range
+    If lookupValue = "" Then Exit Function
+
+    Set match = FindInWorksheet(preferredSheet, lookupValue)
+    If Not match Is Nothing Then
+        Set FindCellValueAcrossSheets = match
+        Exit Function
+    End If
+
+    Dim ws As Worksheet
+    For Each ws In ThisWorkbook.Worksheets
+        If Not ws Is preferredSheet Then
+            Set match = FindInWorksheet(ws, lookupValue)
+            If Not match Is Nothing Then
+                Set FindCellValueAcrossSheets = match
+                Exit Function
+            End If
+        End If
+    Next ws
+End Function
+
+Private Function FindInWorksheet(ByVal ws As Worksheet, ByVal lookupValue As String) As Range
+    If ws Is Nothing Then Exit Function
+    On Error Resume Next
+    Set FindInWorksheet = ws.Cells.Find(What:=lookupValue, After:=ws.Cells(1, 1), LookIn:=xlValues, _
+        LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=True)
+    On Error GoTo 0
+End Function
 
 Private Sub DisableExcelNavigation()
     Application.OnKey "{UP}", "AA_GameLoop.HandleGameKey"
