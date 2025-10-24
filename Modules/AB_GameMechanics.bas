@@ -4,8 +4,6 @@ Option Explicit
 '###################################################################################
 '                              EXCELDA II - GAME MECHANICS
 '###################################################################################
-' Simplified scrolling and screen mechanics
-'###################################################################################
 
 Sub myScroll(ByVal scrollDir As String)
     On Error GoTo ErrorHandler
