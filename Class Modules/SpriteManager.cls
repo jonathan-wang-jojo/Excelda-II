@@ -344,74 +344,60 @@ Public Sub UpdateVisibility()
         restoreScreenUpdating = True
     End If
 
+    Dim previousCalculation As XlCalculation
+    Dim restoreCalculation As Boolean
+    If Application.Calculation <> xlCalculationManual Then
+        previousCalculation = Application.Calculation
+        Application.Calculation = xlCalculationManual
+        restoreCalculation = True
+    End If
+
     Dim targetName As String
     Dim previousName As String
     Dim needsFullRefresh As Boolean
-    Dim pendingHide As String
-    Dim hasNewFrame As Boolean
-    Dim delayHidePrev As Boolean
-
-    pendingHide = m_Sprite.PendingHideName
+    Dim previousBase As String
+    Dim targetBase As String
 
     targetName = m_Sprite.PendingFrameName
-    hasNewFrame = (targetName <> "")
-
     If targetName = "" Then
         targetName = m_Sprite.LastFrameShape
     End If
 
-    If targetName = "" Then
-        If pendingHide <> "" Then
-            HideFrame wsGame, pendingHide
-            pendingHide = ""
-            m_Sprite.PendingHideName = ""
-        End If
-        GoTo Cleanup
-    End If
+    If targetName = "" Then GoTo Cleanup
 
-    If m_Sprite.LastFrameShape = "" Then
-        needsFullRefresh = True
-    ElseIf hasNewFrame Then
+    If m_Sprite.LastFrameShape <> "" Then
         If m_Sprite.LastFrameShape <> targetName Then
             previousName = m_Sprite.LastFrameShape
-        Else
-            m_Sprite.PendingFrameName = ""
-            If pendingHide <> "" Then
-                If pendingHide <> targetName Then
-                    HideFrame wsGame, pendingHide
-                    pendingHide = ""
-                    m_Sprite.PendingHideName = ""
-                End If
+            previousBase = BaseFrameName(previousName)
+            targetBase = BaseFrameName(targetName)
+            If previousBase <> targetBase Then
+                needsFullRefresh = True
             End If
-            GoTo Cleanup
         End If
+    Else
+        needsFullRefresh = True
     End If
 
-    delayHidePrev = (hasNewFrame And previousName <> "")
-
-    ApplyLinkVisibility wsGame, targetName, previousName, needsFullRefresh, delayHidePrev
-
-    If pendingHide <> "" Then
-        If pendingHide <> targetName And pendingHide <> previousName Then
-            HideFrame wsGame, pendingHide
-            pendingHide = ""
-        End If
-    End If
+    ApplyLinkVisibility wsGame, targetName, previousName, needsFullRefresh
 
     m_Sprite.LastFrameShape = targetName
     m_Sprite.PendingFrameName = ""
-    If previousName <> "" Then
-        m_Sprite.PendingHideName = previousName
-    ElseIf pendingHide <> "" And pendingHide <> targetName Then
-        m_Sprite.PendingHideName = pendingHide
-    Else
-        m_Sprite.PendingHideName = ""
-    End If
+    m_Sprite.PendingHideName = ""
 
 Cleanup:
+    m_Sprite.PendingFrameName = ""
+    If restoreCalculation Then Application.Calculation = previousCalculation
     If restoreScreenUpdating Then Application.ScreenUpdating = previousScreenUpdating
     On Error GoTo 0
 End Sub
+
+Private Function BaseFrameName(ByVal frameName As String) As String
+    If Len(frameName) <= 1 Then
+        BaseFrameName = frameName
+    Else
+        BaseFrameName = VBA.Left(frameName, Len(frameName) - 1)
+    End If
+End Function
 
 '===================================================================================
 '                              LEGACY SUPPORT UTILITIES
@@ -557,7 +543,7 @@ Private Sub HideFrame(ByVal ws As Worksheet, ByVal frameName As String)
     End If
 End Sub
 
-Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As String, Optional ByVal previousName As String = "", Optional ByVal fullRefresh As Boolean = False, Optional ByVal delayHidePrevious As Boolean = False)
+Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As String, Optional ByVal previousName As String = "", Optional ByVal fullRefresh As Boolean = False)
     If activeName = "" Then Exit Sub
 
     Dim activeShape As Shape
@@ -569,20 +555,17 @@ Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As Strin
         On Error GoTo 0
     End If
 
-    If Not delayHidePrevious Then
-        If previousName <> "" And previousName <> activeName Then
-            HideFrame ws, previousName
-        End If
+    If previousName <> "" And previousName <> activeName Then
+        HideFrame ws, previousName
     End If
 
     If fullRefresh Then
         Dim frameName As Variant
         For Each frameName In LinkFrameNames()
-            If CStr(frameName) <> activeName Then
-                If Not (delayHidePrevious And previousName <> "" And CStr(frameName) = previousName) Then
-                    HideFrame ws, CStr(frameName)
-                End If
+            If CStr(frameName) <> activeName And CStr(frameName) <> previousName Then
+                HideFrame ws, CStr(frameName)
             End If
         Next frameName
     End If
 End Sub
+

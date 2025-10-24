@@ -221,6 +221,7 @@ End Sub
 '###################################################################################
 Private Sub HandleInput(ByVal deltaSeconds As Double)
     ' Process player input
+    DoEvents
     Dim newDir As String
     newDir = ""
     Dim currentCell As Range
