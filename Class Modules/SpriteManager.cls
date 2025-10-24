@@ -336,48 +336,70 @@ Public Sub UpdateVisibility()
     End If
     If wsGame Is Nothing Then Exit Sub
 
-    Dim hideShape As Shape
-    If m_Sprite.PendingHideName <> "" Then
-        Set hideShape = ShapeIfExists(wsGame, m_Sprite.PendingHideName)
-        If Not hideShape Is Nothing Then
-            If hideShape.Visible <> msoFalse Then hideShape.Visible = msoFalse
-        End If
-        m_Sprite.PendingHideName = ""
-    End If
-
     Dim targetName As String
     Dim previousName As String
     Dim needsFullRefresh As Boolean
+    Dim pendingHide As String
+    Dim hasNewFrame As Boolean
+    Dim delayHidePrev As Boolean
+
+    pendingHide = m_Sprite.PendingHideName
 
     targetName = m_Sprite.PendingFrameName
+    hasNewFrame = (targetName <> "")
 
     If targetName = "" Then
-        If m_Sprite.LastFrameShape = "" Then
-            If m_Sprite.LinkSprite Is Nothing Then Exit Sub
-            targetName = m_Sprite.LinkSprite.Name
-            needsFullRefresh = True
-        Else
-            Exit Sub
+        targetName = m_Sprite.LastFrameShape
+    End If
+
+    If targetName = "" Then
+        If pendingHide <> "" And Not wsGame Is Nothing Then
+            HideFrame wsGame, pendingHide
+            pendingHide = ""
+            m_Sprite.PendingHideName = ""
         End If
-    Else
-        If m_Sprite.LastFrameShape = "" Then
-            needsFullRefresh = True
-        ElseIf m_Sprite.LastFrameShape <> targetName Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+
+    If m_Sprite.LastFrameShape = "" Then
+        needsFullRefresh = True
+    ElseIf hasNewFrame Then
+        If m_Sprite.LastFrameShape <> targetName Then
             previousName = m_Sprite.LastFrameShape
         Else
             m_Sprite.PendingFrameName = ""
+            If pendingHide <> "" Then
+                If pendingHide <> targetName Then
+                    HideFrame wsGame, pendingHide
+                    pendingHide = ""
+                    m_Sprite.PendingHideName = ""
+                End If
+            End If
+            On Error GoTo 0
             Exit Sub
         End If
     End If
 
-    ApplyLinkVisibility wsGame, targetName, "", needsFullRefresh
+    delayHidePrev = (hasNewFrame And previousName <> "")
+
+    ApplyLinkVisibility wsGame, targetName, previousName, needsFullRefresh, delayHidePrev
+
+    If pendingHide <> "" Then
+        If pendingHide <> targetName And pendingHide <> previousName Then
+            HideFrame wsGame, pendingHide
+            pendingHide = ""
+        End If
+    End If
 
     m_Sprite.LastFrameShape = targetName
     m_Sprite.PendingFrameName = ""
-    If needsFullRefresh Then
-        m_Sprite.PendingHideName = ""
-    ElseIf previousName <> "" Then
+    If previousName <> "" Then
         m_Sprite.PendingHideName = previousName
+    ElseIf pendingHide <> "" And pendingHide <> targetName Then
+        m_Sprite.PendingHideName = pendingHide
+    Else
+        m_Sprite.PendingHideName = ""
     End If
 
     On Error GoTo 0
@@ -516,30 +538,41 @@ Private Function ShapeIfExists(ByVal ws As Worksheet, ByVal shapeName As String)
     On Error GoTo 0
 End Function
 
-Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As String, Optional ByVal previousName As String = "", Optional ByVal fullRefresh As Boolean = False)
+Private Sub HideFrame(ByVal ws As Worksheet, ByVal frameName As String)
+    If ws Is Nothing Then Exit Sub
+    If frameName = "" Then Exit Sub
+
+    Dim frameShape As Shape
+    Set frameShape = ShapeIfExists(ws, frameName)
+    If Not frameShape Is Nothing Then
+        If frameShape.Visible <> msoFalse Then frameShape.Visible = msoFalse
+    End If
+End Sub
+
+Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As String, Optional ByVal previousName As String = "", Optional ByVal fullRefresh As Boolean = False, Optional ByVal delayHidePrevious As Boolean = False)
     If activeName = "" Then Exit Sub
 
     Dim activeShape As Shape
     Set activeShape = ShapeIfExists(ws, activeName)
     If Not activeShape Is Nothing Then
         If activeShape.Visible <> msoTrue Then activeShape.Visible = msoTrue
+        On Error Resume Next
+        activeShape.ZOrder msoBringToFront
+        On Error GoTo 0
     End If
 
-    Dim frameShape As Shape
-    If previousName <> "" And previousName <> activeName Then
-        Set frameShape = ShapeIfExists(ws, previousName)
-        If Not frameShape Is Nothing Then
-            If frameShape.Visible <> msoFalse Then frameShape.Visible = msoFalse
+    If Not delayHidePrevious Then
+        If previousName <> "" And previousName <> activeName Then
+            HideFrame ws, previousName
         End If
     End If
 
     If fullRefresh Then
         Dim frameName As Variant
         For Each frameName In LinkFrameNames()
-            If CStr(frameName) <> activeName And CStr(frameName) <> previousName Then
-                Set frameShape = ShapeIfExists(ws, CStr(frameName))
-                If Not frameShape Is Nothing Then
-                    If frameShape.Visible <> msoFalse Then frameShape.Visible = msoFalse
+            If CStr(frameName) <> activeName Then
+                If Not (delayHidePrevious And previousName <> "" And CStr(frameName) = previousName) Then
+                    HideFrame ws, CStr(frameName)
                 End If
             End If
         Next frameName

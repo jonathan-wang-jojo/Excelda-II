@@ -7,6 +7,7 @@ Option Explicit
 
 ' Win32 API Declarations
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
+Private Declare PtrSafe Function GetKeyState Lib "User32.dll" (ByVal nVirtKey As Long) As Integer
 
 ' Module-level variables
 Private m_GameState As GameState
@@ -362,9 +363,22 @@ Private Function IsQuitRequested() As Boolean
 End Function
 
 Private Function IsKeyPressed(ByVal vKey As Integer) As Boolean
-    Dim state As Long
-    state = GetAsyncKeyState(vKey)
-    IsKeyPressed = ((state And &H8000&) <> 0) Or ((state And 1) <> 0)
+    Dim asyncState As Long
+    Dim isCurrentlyDown As Boolean
+    Dim pressedSinceLastCall As Boolean
+    Dim syncState As Long
+
+    asyncState = GetAsyncKeyState(vKey)
+
+    isCurrentlyDown = ((asyncState And &H8000&) <> 0)
+    pressedSinceLastCall = ((asyncState And 1) <> 0)
+
+    If Not isCurrentlyDown And Not pressedSinceLastCall Then
+        syncState = CLng(GetKeyState(CLng(vKey)))
+        isCurrentlyDown = ((syncState And &H8000&) <> 0)
+    End If
+
+    IsKeyPressed = isCurrentlyDown Or pressedSinceLastCall
 End Function
 
 Private Function FindLinkSprite(ByVal sheetName As String) As String
