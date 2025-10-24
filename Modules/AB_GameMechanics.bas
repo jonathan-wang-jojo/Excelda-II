@@ -105,7 +105,7 @@ Private Function PrimaryDirectionLetter(ByVal direction As String) As String
     ElseIf InStr(normalized, "R") > 0 Then
         PrimaryDirectionLetter = "R"
     ElseIf Len(normalized) > 0 Then
-        PrimaryDirectionLetter = VBA.Left(normalized, 1)
+        PrimaryDirectionLetter = Mid$(normalized, 1, 1)
     End If
 End Function
 

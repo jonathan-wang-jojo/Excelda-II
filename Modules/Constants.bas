@@ -86,3 +86,6 @@ Public Const SCROLL_CODE_DOWN As String = "3"
 Public Const SCROLL_CODE_UP As String = "4"
 Public Const SCROLL_AMOUNT_VERTICAL As Long = 32
 Public Const SCROLL_AMOUNT_HORIZONTAL As Long = 60
+
+' Default spawn location for a new game
+Public Const DEFAULT_START_CELL As String = "CO598"

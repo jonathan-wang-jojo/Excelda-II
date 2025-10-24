@@ -218,10 +218,14 @@ Private Sub GoToViewport(ByVal anchor As Range)
 
     m_View.LastAnchor = anchor.Address(False, False)
 
+    Dim previousZoom As Variant
+    previousZoom = CaptureWindowZoom()
+
     On Error Resume Next
     Application.Goto targetRange, True
-    ActiveWindow.Zoom = True
     On Error GoTo 0
+
+    RestoreWindowZoom previousZoom
 
     CaptureVisibleDimensions ws
 End Sub
@@ -254,6 +258,27 @@ Private Function SafeOffset(ByVal value As Variant, ByVal fallback As Long) As L
     If parsed <= 0 Then parsed = 1
     SafeOffset = parsed
 End Function
+
+Private Function CaptureWindowZoom() As Variant
+    On Error Resume Next
+    CaptureWindowZoom = ActiveWindow.Zoom
+    If Err.Number <> 0 Then
+        CaptureWindowZoom = Null
+        Err.Clear
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub RestoreWindowZoom(ByVal zoomValue As Variant)
+    If IsEmpty(zoomValue) Then Exit Sub
+    If IsNull(zoomValue) Then Exit Sub
+    If VarType(zoomValue) = vbBoolean Then Exit Sub
+    If Not IsNumeric(zoomValue) Then Exit Sub
+
+    On Error Resume Next
+    ActiveWindow.Zoom = CDbl(zoomValue)
+    On Error GoTo 0
+End Sub
 
 Private Function NormalizeScreenCode(ByVal screenCode As String) As String
     NormalizeScreenCode = UCase$(Trim$(screenCode))

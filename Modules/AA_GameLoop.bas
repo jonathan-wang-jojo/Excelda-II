@@ -22,6 +22,7 @@ Private m_PreviousCalculation As XlCalculation
 Private m_InGameMode As Boolean
 Private m_IsRunning As Boolean
 Private m_MoveBlocked As Boolean
+Private m_PendingStartCell As String
 
 '###################################################################################
 '                              ENTRY POINT
@@ -41,6 +42,16 @@ Public Sub Start()
 ErrorHandler:
     StopGameLoop
     MsgBox "Game Error: " & Err.Description, vbCritical
+End Sub
+
+Public Sub PrepareNewGameStart(Optional ByVal startCell As String = DEFAULT_START_CELL)
+    Dim trimmed As String
+    trimmed = Trim$(startCell)
+    If trimmed = "" Then
+        m_PendingStartCell = DEFAULT_START_CELL
+    Else
+        m_PendingStartCell = trimmed
+    End If
 End Sub
 '###################################################################################
 '                              STARTUP SEQUENCE
@@ -94,6 +105,10 @@ Private Sub StartGame()
     ' Sync state
     m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
     Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value = m_GameState.LinkCellAddress
+
+    If m_PendingStartCell <> "" Then
+        ApplyPendingStartState
+    End If
     
     ' Align view and run screen setup
     Call alignScreen
@@ -532,6 +547,41 @@ End Function
 '                              Sprite Visibility Management
 '###################################################################################
 
+Private Sub ApplyPendingStartState()
+    Dim pending As String
+    pending = Trim$(m_PendingStartCell)
+    m_PendingStartCell = ""
+    If pending = "" Then Exit Sub
+
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+
+    On Error GoTo StartStateError
+    RelocateToSimpleLocation pending
+
+    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_CELL).Value = gs.LinkCellAddress
+    Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_SCROLL_DIRECTION).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_FALLING).Value = "N"
+    Sheets(SHEET_DATA).Range(RANGE_FALL_SEQUENCE).Value = "N"
+    Sheets(SHEET_DATA).Range(RANGE_ACTION_C).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_ACTION_D).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_C_ITEM).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_D_ITEM).Value = ""
+    Sheets(SHEET_DATA).Range(RANGE_SHIELD_STATE).Value = ""
+
+    gs.TriggerCellAddress = ""
+    gs.CodeCell = ""
+    gs.MoveDir = ""
+    Exit Sub
+
+StartStateError:
+    Debug.Print "ApplyPendingStartState error: " & Err.Description
+    On Error GoTo 0
+End Sub
+
 Sub Relocate(ByVal code As String)
     On Error GoTo RelocateError
 
@@ -559,11 +609,6 @@ Sub Relocate(ByVal code As String)
 
     ParseTriggerCode trimmedCode, scrollIndicator, scrollDir, fallIndicator, actionIndicator, enemyType, enemySlot, offsetDir, actionCell
 
-    If scrollIndicator <> "S" And trimmedCode <> "" And actionCell = "" Then
-        Call RelocateToSimpleLocation(trimmedCode)
-        Exit Sub
-    End If
-
     Set gs = GameStateInstance()
     If gs Is Nothing Then Exit Sub
 
@@ -572,6 +617,11 @@ Sub Relocate(ByVal code As String)
     End If
     If actionCell = "" Then
         actionCell = Sheets(SHEET_DATA).Range(RANGE_CURRENT_CELL).Value
+    End If
+
+    If scrollIndicator <> "S" And trimmedCode <> "" And actionCell = "" Then
+        Call RelocateToSimpleLocation(trimmedCode)
+        Exit Sub
     End If
 
     targetAddress = actionCell
@@ -697,12 +747,23 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
 
     Dim candidateSheet As Worksheet
     Dim allowDirectRange As Boolean
+    Dim legacyId As String
+    Dim found As Range
     If sheetPart <> "" Then
         On Error Resume Next
         Set candidateSheet = Sheets(sheetPart)
         On Error GoTo 0
     End If
     If candidateSheet Is Nothing Then Set candidateSheet = defaultSheet
+
+    legacyId = ExtractLegacyCellId(trimmed)
+    If legacyId <> "" Then
+        Set found = FindCellValueAcrossSheets(legacyId, candidateSheet)
+        If Not found Is Nothing Then
+            Set ResolveTargetCell = found
+            Exit Function
+        End If
+    End If
 
     allowDirectRange = ShouldAttemptDirectAddress(addressPart)
 
@@ -713,27 +774,60 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
         If Not ResolveTargetCell Is Nothing Then Exit Function
     End If
 
-    Dim found As Range
     Set found = FindCellValueAcrossSheets(trimmed, candidateSheet)
-    If found Is Nothing Then
-        Dim cellId As String
+    If Not found Is Nothing Then
+        Set ResolveTargetCell = found
+        Exit Function
+    End If
+
+    If legacyId = "" Then
+        Dim fallbackId As String
         If Len(trimmed) <= 4 Then
-            cellId = trimmed
+            fallbackId = trimmed
         Else
-            cellId = Mid$(trimmed, Len(trimmed) - 3)
+            fallbackId = Mid$(trimmed, Len(trimmed) - 3)
         End If
-        If cellId <> "" And cellId <> trimmed Then
-            Set found = FindCellValueAcrossSheets(cellId, candidateSheet)
+        If fallbackId <> "" And fallbackId <> trimmed Then
+            Set found = FindCellValueAcrossSheets(fallbackId, candidateSheet)
+            If Not found Is Nothing Then
+                Set ResolveTargetCell = found
+                Exit Function
+            End If
         End If
     End If
 
-    Set ResolveTargetCell = found
+    Set ResolveTargetCell = Nothing
+End Function
+
+Private Function ExtractLegacyCellId(ByVal location As String) As String
+    Dim trimmed As String
+    Dim candidate As String
+    Dim firstChar As String
+
+    trimmed = Trim$(location)
+    If trimmed = "" Then Exit Function
+
+    If Len(trimmed) <= 4 Then
+        candidate = trimmed
+    Else
+        candidate = Mid$(trimmed, Len(trimmed) - 3, 4)
+    End If
+
+    If candidate = "" Then Exit Function
+
+    firstChar = Mid$(candidate, 1, 1)
+    If firstChar < "A" Or firstChar > "Z" Then Exit Function
+
+    ExtractLegacyCellId = candidate
 End Function
 
 Private Function ShouldAttemptDirectAddress(ByVal addressPart As String) As Boolean
     Dim trimmed As String
     trimmed = Trim$(addressPart)
-    If trimmed = "" Then Exit Function
+    If trimmed = "" Then
+        ShouldAttemptDirectAddress = False
+        Exit Function
+    End If
 
     Dim idx As Long
     Dim firstDigit As Long
@@ -755,7 +849,7 @@ Private Function ShouldAttemptDirectAddress(ByVal addressPart As String) As Bool
     Dim digitPart As String
     digitPart = Mid$(trimmed, firstDigit)
 
-    If Len(digitPart) > 1 And Left$(digitPart, 1) = "0" Then
+    If Len(digitPart) > 1 And Mid$(digitPart, 1, 1) = "0" Then
         ' Leading zeros indicate code identifiers like X014; skip direct range
         ShouldAttemptDirectAddress = False
     Else
@@ -914,6 +1008,7 @@ Private Sub StopGameLoop()
     Call RestoreExcelNavigation
     Application.CutCopyMode = False
     Application.ScreenUpdating = True
+    m_PendingStartCell = ""
     ' Try to activate title sheet if present
     If SheetExists(SHEET_TITLE) Then
         Sheets(SHEET_TITLE).Activate

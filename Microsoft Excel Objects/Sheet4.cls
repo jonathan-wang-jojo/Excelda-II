@@ -14,6 +14,7 @@ End Sub
 
 Private Sub StartGameButton_Click()
     ' Activate starting screen and begin game
+    AA_GameLoop.PrepareNewGameStart DEFAULT_START_CELL
     Sheets("Game1").Activate
     Call Start
 End Sub
