@@ -53,6 +53,76 @@ Public Sub PrepareNewGameStart(Optional ByVal startCell As String = DEFAULT_STAR
         m_PendingStartCell = trimmed
     End If
 End Sub
+
+Public Sub StartNewGame(Optional ByVal startCell As String = DEFAULT_START_CELL)
+    ' Convenience entry point for menu buttons: reset to a fresh game state, then start the loop
+    Call ResetGame(startCell)
+    Call Start
+End Sub
+
+Public Sub ContinueGame()
+    ' Wrapper for menu buttons that should resume without forcing an explicit reset
+    Call Start
+End Sub
+
+Public Sub ResetGame(Optional ByVal startCell As String = DEFAULT_START_CELL)
+    On Error GoTo ResetError
+
+    Dim desiredStart As String
+    desiredStart = Trim$(startCell)
+    If desiredStart = "" Then desiredStart = DEFAULT_START_CELL
+
+    Dim previousUpdating As Boolean
+    previousUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+
+    StopGameLoop
+
+    m_IsRunning = False
+    m_MoveBlocked = False
+
+    Sheets(SHEET_GAME).Activate
+
+    ResetAllManagers
+
+    Set m_GameState = GameStateInstance()
+    Set m_SpriteManager = SpriteManagerInstance()
+    Set m_ActionManager = ActionManagerInstance()
+    Set m_EnemyManager = EnemyManagerInstance()
+    Set m_SceneManager = SceneManagerInstance()
+
+    Dim spriteName As String
+    spriteName = FindLinkSprite(SHEET_GAME)
+    If spriteName = "" Then
+        Err.Raise vbObjectError + 302, "ResetGame", "Link sprite not found on sheet " & SHEET_GAME
+    End If
+
+    m_SpriteManager.BindLinkSprite SHEET_GAME, spriteName
+    m_SpriteManager.UpdateVisibility
+    m_ActionManager.Initialize
+    m_EnemyManager.Initialize
+    m_SceneManager.ActivateSceneBySheet SHEET_GAME
+
+    m_GameState.RefreshFromDataSheet
+    m_GameState.CurrentScreen = SHEET_GAME
+    m_GameState.MoveDir = ""
+    m_GameState.IsFalling = False
+
+    m_PendingStartCell = desiredStart
+    ApplyPendingStartState
+
+    Dim viewport As ViewportManager
+    Set viewport = ViewportManagerInstance()
+    viewport.AlignToLink
+    viewport.RefreshVisibleDimensions
+
+    Application.ScreenUpdating = previousUpdating
+    Exit Sub
+
+ResetError:
+    Application.ScreenUpdating = previousUpdating
+    MsgBox "Reset Error: " & Err.Description, vbCritical, "Reset Game"
+End Sub
 '###################################################################################
 '                              STARTUP SEQUENCE
 '###################################################################################

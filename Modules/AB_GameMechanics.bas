@@ -64,26 +64,83 @@ Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDi
         Exit Function
     End If
 
-    Dim candidate As String
-    candidate = NormalizeDirectionCandidate(moveDir)
-    If candidate = "" Then candidate = NormalizeDirectionCandidate(lastDir)
-    If candidate = "" Then Exit Function
+    Dim orientation As String
+    orientation = ScrollOrientation(scrollCode)
 
-    ResolveScrollDirection = PrimaryDirectionLetter(candidate)
+    Dim moveCandidate As String
+    Dim lastCandidate As String
+    Dim prevCandidate As String
+    Dim resolved As String
+
+    moveCandidate = NormalizeDirectionCandidate(moveDir)
+    lastCandidate = NormalizeDirectionCandidate(lastDir)
+    prevCandidate = NormalizeDirectionCandidate(Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value)
+
+    resolved = ExtractDirectionalComponent(moveCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(lastCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(prevCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(moveCandidate, "")
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(lastCandidate, "")
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    ResolveScrollDirection = ExtractDirectionalComponent(prevCandidate, "")
 End Function
 
 Private Function ScrollCodeToDirectionLetter(ByVal scrollCode As String) As String
-    Select Case UCase$(Trim$(scrollCode))
-        Case SCROLL_CODE_RIGHT, "R"
-            ScrollCodeToDirectionLetter = "R"
-        Case SCROLL_CODE_LEFT, "L"
-            ScrollCodeToDirectionLetter = "L"
-        Case SCROLL_CODE_DOWN, "D"
+    Dim normalized As String
+    normalized = UCase$(Trim$(scrollCode))
+
+    Select Case normalized
+        Case SCROLL_CODE_DIRECT_DOWN, "3", "D"
             ScrollCodeToDirectionLetter = "D"
-        Case SCROLL_CODE_UP, "U"
+        Case SCROLL_CODE_DIRECT_UP, "4", "U"
             ScrollCodeToDirectionLetter = "U"
+        Case "R"
+            ScrollCodeToDirectionLetter = "R"
+        Case "L"
+            ScrollCodeToDirectionLetter = "L"
         Case Else
             ScrollCodeToDirectionLetter = ""
+    End Select
+End Function
+
+Private Function ScrollOrientation(ByVal scrollCode As String) As String
+    Dim normalized As String
+    normalized = UCase$(Trim$(scrollCode))
+
+    Select Case normalized
+        Case SCROLL_CODE_HORIZONTAL, "2", "R", "L"
+            ScrollOrientation = "H"
+        Case SCROLL_CODE_VERTICAL, "1", _
+             SCROLL_CODE_DIRECT_DOWN, "3", _
+             SCROLL_CODE_DIRECT_UP, "4", _
+             "U", "D"
+            ScrollOrientation = "V"
+        Case Else
+            ScrollOrientation = ""
     End Select
 End Function
 
@@ -92,21 +149,43 @@ Private Function NormalizeDirectionCandidate(ByVal value As String) As String
 End Function
 
 Private Function PrimaryDirectionLetter(ByVal direction As String) As String
+    PrimaryDirectionLetter = ExtractDirectionalComponent(direction, "")
+End Function
+
+Private Function ExtractDirectionalComponent(ByVal direction As String, ByVal orientation As String) As String
     Dim normalized As String
     normalized = NormalizeDirectionCandidate(direction)
     If normalized = "" Then Exit Function
 
-    If InStr(normalized, "U") > 0 Then
-        PrimaryDirectionLetter = "U"
-    ElseIf InStr(normalized, "D") > 0 Then
-        PrimaryDirectionLetter = "D"
-    ElseIf InStr(normalized, "L") > 0 Then
-        PrimaryDirectionLetter = "L"
-    ElseIf InStr(normalized, "R") > 0 Then
-        PrimaryDirectionLetter = "R"
-    ElseIf Len(normalized) > 0 Then
-        PrimaryDirectionLetter = Mid$(normalized, 1, 1)
+    Dim index As Long
+    Dim ch As String
+
+    If orientation <> "" Then
+        For index = 1 To Len(normalized)
+            ch = Mid$(normalized, index, 1)
+            Select Case orientation
+                Case "H"
+                    If ch = "L" Or ch = "R" Then
+                        ExtractDirectionalComponent = ch
+                        Exit Function
+                    End If
+                Case "V"
+                    If ch = "U" Or ch = "D" Then
+                        ExtractDirectionalComponent = ch
+                        Exit Function
+                    End If
+            End Select
+        Next index
     End If
+
+    For index = 1 To Len(normalized)
+        ch = Mid$(normalized, index, 1)
+        Select Case ch
+            Case "U", "D", "L", "R"
+                ExtractDirectionalComponent = ch
+                Exit Function
+        End Select
+    Next index
 End Function
 
 Private Function ShouldPreventRescroll(ByVal currentCell As String, ByVal newDirection As String) As Boolean
@@ -143,13 +222,19 @@ End Function
 
 Private Sub PerformWindowScroll(ByVal scrollCode As String, ByVal direction As String)
     Select Case Trim$(scrollCode)
-        Case SCROLL_CODE_RIGHT
-            ActiveWindow.SmallScroll toRight:=SCROLL_AMOUNT_HORIZONTAL
-        Case SCROLL_CODE_LEFT
-            ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
-        Case SCROLL_CODE_DOWN
+        Case SCROLL_CODE_HORIZONTAL
+            Select Case UCase$(direction)
+                Case "R": ActiveWindow.SmallScroll toRight:=SCROLL_AMOUNT_HORIZONTAL
+                Case "L": ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
+            End Select
+        Case SCROLL_CODE_VERTICAL
+            Select Case UCase$(direction)
+                Case "D": ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
+                Case "U": ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
+            End Select
+        Case SCROLL_CODE_DIRECT_DOWN
             ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
-        Case SCROLL_CODE_UP
+        Case SCROLL_CODE_DIRECT_UP
             ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
         Case Else
             Select Case UCase$(direction)
@@ -188,11 +273,14 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal direction As String
     scrollCode = Trim$(scrollDir)
 
     Dim primaryDir As String
-    primaryDir = NormalizeDirectionCandidate(direction)
+    Dim orientation As String
+    orientation = ScrollOrientation(scrollCode)
+
+    primaryDir = ExtractDirectionalComponent(direction, orientation)
     If primaryDir = "" Then
         primaryDir = ScrollCodeToDirectionLetter(scrollCode)
         If primaryDir = "" Then
-            primaryDir = NormalizeDirectionCandidate(gs.LastDir)
+            primaryDir = ExtractDirectionalComponent(gs.LastDir, orientation)
         End If
     End If
 
@@ -200,18 +288,30 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal direction As String
     myColumn = baseColumn
 
     Select Case scrollCode
-        Case SCROLL_CODE_DOWN
+        Case SCROLL_CODE_VERTICAL
+            Select Case primaryDir
+                Case "D"
+                    myRow = baseRow + 5
+                Case Else
+                    myRow = baseRow
+                End Select
+            myColumn = baseColumn
+        Case SCROLL_CODE_HORIZONTAL
+            Select Case primaryDir
+                Case "R"
+                    myColumn = baseColumn + 2
+                Case "L"
+                    myColumn = baseColumn - 2
+                Case Else
+                    myColumn = baseColumn
+            End Select
+            myRow = baseRow
+        Case SCROLL_CODE_DIRECT_DOWN
             myColumn = baseColumn
             myRow = baseRow + 5
-        Case SCROLL_CODE_UP
+        Case SCROLL_CODE_DIRECT_UP
             myColumn = baseColumn
             myRow = baseRow
-        Case SCROLL_CODE_LEFT
-            myRow = baseRow
-            myColumn = baseColumn - 2
-        Case SCROLL_CODE_RIGHT
-            myRow = baseRow
-            myColumn = baseColumn + 2
         Case ""
             myColumn = baseColumn
             myRow = baseRow

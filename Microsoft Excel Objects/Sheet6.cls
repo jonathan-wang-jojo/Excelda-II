@@ -9,12 +9,12 @@
 'Attribute VB_Exposed = True
 Private Sub CommandButton1_Click()
     ' Run game from current state
-    Call Start
+    AA_GameLoop.ContinueGame
 End Sub
 
 Private Sub CommandButton2_Click()
     ' Reset all managers
-    Call ResetAllManagers
+    AA_GameLoop.StartNewGame
 End Sub
 
 Private Sub CommandButton3_Click()

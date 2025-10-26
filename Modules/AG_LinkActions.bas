@@ -127,10 +127,10 @@ Private Sub HandleScrollTrigger(ByVal tileCode As String)
     scrollCode = Mid$(tileCode, 1, 2)
 
     Select Case scrollCode
-        Case "S1": myScroll SCROLL_CODE_RIGHT
-        Case "S2": myScroll SCROLL_CODE_LEFT
-        Case "S3": myScroll SCROLL_CODE_DOWN
-        Case "S4": myScroll SCROLL_CODE_UP
+        Case "S1": myScroll SCROLL_CODE_VERTICAL
+        Case "S2": myScroll SCROLL_CODE_HORIZONTAL
+        Case "S3": myScroll SCROLL_CODE_DIRECT_DOWN
+        Case "S4": myScroll SCROLL_CODE_DIRECT_UP
     End Select
 End Sub
 
