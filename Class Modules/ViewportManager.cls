@@ -4,8 +4,8 @@ Private Const SCREEN_ROW_LABEL_COLUMN As Long = 7
 Private Const SCREEN_ROW_OFFSET_COLUMN As Long = 8
 Private Const SCREEN_COLUMN_LABEL_ROW As Long = 1
 Private Const SCREEN_COLUMN_OFFSET_ROW As Long = 2
-Private Const DEFAULT_VISIBLE_ROWS As Long = 22
-Private Const DEFAULT_VISIBLE_COLUMNS As Long = 32
+Private Const DEFAULT_VISIBLE_ROWS As Long = 32
+Private Const DEFAULT_VISIBLE_COLUMNS As Long = 60
 
 Private Type ViewportData
     VisibleRows As Long
@@ -39,8 +39,8 @@ Public Sub Destroy()
 End Sub
 
 Private Sub ResetState()
-    m_View.VisibleRows = 0
-    m_View.VisibleColumns = 0
+    m_View.VisibleRows = DEFAULT_VISIBLE_ROWS
+    m_View.VisibleColumns = DEFAULT_VISIBLE_COLUMNS
     m_View.LastAnchor = ""
 End Sub
 
@@ -218,35 +218,72 @@ Private Sub GoToViewport(ByVal anchor As Range)
 
     m_View.LastAnchor = anchor.Address(False, False)
 
-    Dim previousZoom As Variant
-    previousZoom = CaptureWindowZoom()
-
     On Error Resume Next
     Application.Goto targetRange, True
     On Error GoTo 0
 
-    RestoreWindowZoom previousZoom
-
-    CaptureVisibleDimensions ws
+    CaptureVisibleDimensions ws, targetRange
 End Sub
 
 Private Sub EnsureVisibleDimensions(ByVal ws As Worksheet)
-    If m_View.VisibleRows > 0 And m_View.VisibleColumns > 0 Then Exit Sub
+    If m_View.VisibleRows <= 0 Then m_View.VisibleRows = DEFAULT_VISIBLE_ROWS
+    If m_View.VisibleColumns <= 0 Then m_View.VisibleColumns = DEFAULT_VISIBLE_COLUMNS
     CaptureVisibleDimensions ws
     If m_View.VisibleRows <= 0 Then m_View.VisibleRows = DEFAULT_VISIBLE_ROWS
     If m_View.VisibleColumns <= 0 Then m_View.VisibleColumns = DEFAULT_VISIBLE_COLUMNS
 End Sub
 
-Private Sub CaptureVisibleDimensions(ByVal ws As Worksheet)
+Private Sub CaptureVisibleDimensions(ByVal ws As Worksheet, Optional ByVal desiredViewport As Range)
+    Dim activeWin As Object
+    On Error Resume Next
+    Set activeWin = ActiveWindow
+    On Error GoTo 0
+    If activeWin Is Nothing Then Exit Sub
+
     On Error Resume Next
     ws.Activate
-    Dim visible As Range
-    Set visible = ActiveWindow.VisibleRange
-    If Not visible Is Nothing Then
-        m_View.VisibleRows = visible.Rows.Count
-        m_View.VisibleColumns = visible.Columns.Count
-    End If
     On Error GoTo 0
+
+    Dim visible As Range
+    On Error Resume Next
+    Set visible = activeWin.VisibleRange
+    On Error GoTo 0
+
+    If visible Is Nothing Then Exit Sub
+
+    Dim actualRows As Long
+    Dim actualColumns As Long
+    actualRows = visible.Rows.Count
+    actualColumns = visible.Columns.Count
+
+    Dim zoomAdjusted As Boolean
+    zoomAdjusted = AdjustZoomForTarget(activeWin, actualRows, actualColumns)
+
+    If zoomAdjusted Then
+        On Error Resume Next
+        Set visible = activeWin.VisibleRange
+        On Error GoTo 0
+        If Not visible Is Nothing Then
+            actualRows = visible.Rows.Count
+            actualColumns = visible.Columns.Count
+        End If
+
+        ReapplyViewportAnchor ws, desiredViewport, actualRows, actualColumns
+
+        On Error Resume Next
+        Set visible = activeWin.VisibleRange
+        On Error GoTo 0
+        If Not visible Is Nothing Then
+            actualRows = visible.Rows.Count
+            actualColumns = visible.Columns.Count
+        End If
+    End If
+
+    If actualRows <= 0 Then actualRows = DEFAULT_VISIBLE_ROWS
+    If actualColumns <= 0 Then actualColumns = DEFAULT_VISIBLE_COLUMNS
+
+    m_View.VisibleRows = actualRows
+    m_View.VisibleColumns = actualColumns
 End Sub
 
 Private Function SafeOffset(ByVal value As Variant, ByVal fallback As Long) As Long
@@ -259,26 +296,108 @@ Private Function SafeOffset(ByVal value As Variant, ByVal fallback As Long) As L
     SafeOffset = parsed
 End Function
 
-Private Function CaptureWindowZoom() As Variant
+Private Function AdjustZoomForTarget(ByVal activeWin As Object, ByVal actualRows As Long, ByVal actualColumns As Long) As Boolean
+    Dim targetRows As Long
+    Dim targetColumns As Long
+    targetRows = DEFAULT_VISIBLE_ROWS
+    targetColumns = DEFAULT_VISIBLE_COLUMNS
+
+    If targetRows <= 0 Or targetColumns <= 0 Then Exit Function
+    If actualRows <= 0 Or actualColumns <= 0 Then Exit Function
+    If activeWin Is Nothing Then Exit Function
+
+    Dim currentZoom As Double
+    currentZoom = GetCurrentWindowZoom(activeWin)
+    If currentZoom <= 0# Then currentZoom = 100#
+
+    Dim zoomRows As Double
+    Dim zoomColumns As Double
+    zoomRows = currentZoom * CDbl(actualRows) / CDbl(targetRows)
+    zoomColumns = currentZoom * CDbl(actualColumns) / CDbl(targetColumns)
+
+    Dim newZoom As Double
+    If zoomRows < zoomColumns Then
+        newZoom = zoomRows
+    Else
+        newZoom = zoomColumns
+    End If
+
+    newZoom = ClampZoom(newZoom)
+
+    If Abs(newZoom - currentZoom) < 0.5 Then Exit Function
+
     On Error Resume Next
-    CaptureWindowZoom = ActiveWindow.Zoom
-    If Err.Number <> 0 Then
-        CaptureWindowZoom = Null
+    activeWin.Zoom = newZoom
+    If Err.Number = 0 Then
+        AdjustZoomForTarget = True
+    Else
         Err.Clear
     End If
     On Error GoTo 0
 End Function
 
-Private Sub RestoreWindowZoom(ByVal zoomValue As Variant)
-    If IsEmpty(zoomValue) Then Exit Sub
-    If IsNull(zoomValue) Then Exit Sub
-    If VarType(zoomValue) = vbBoolean Then Exit Sub
-    If Not IsNumeric(zoomValue) Then Exit Sub
+Private Sub ReapplyViewportAnchor(ByVal ws As Worksheet, ByVal desiredViewport As Range, ByVal rowsVisible As Long, ByVal colsVisible As Long)
+    Dim anchorCell As Range
+
+    If Not desiredViewport Is Nothing Then
+        Set anchorCell = desiredViewport.Cells(1, 1)
+    ElseIf m_View.LastAnchor <> "" Then
+        On Error Resume Next
+        Set anchorCell = ws.Range(m_View.LastAnchor)
+        On Error GoTo 0
+    End If
+
+    If anchorCell Is Nothing Then Exit Sub
+
+    If rowsVisible <= 0 Then rowsVisible = DEFAULT_VISIBLE_ROWS
+    If colsVisible <= 0 Then colsVisible = DEFAULT_VISIBLE_COLUMNS
+
+    Dim maxRows As Long
+    Dim maxCols As Long
+    maxRows = ws.Rows.Count
+    maxCols = ws.Columns.Count
+
+    If rowsVisible < 1 Then rowsVisible = 1
+    If colsVisible < 1 Then colsVisible = 1
+
+    If anchorCell.Row + rowsVisible - 1 > maxRows Then
+        rowsVisible = maxRows - anchorCell.Row + 1
+    End If
+    If anchorCell.Column + colsVisible - 1 > maxCols Then
+        colsVisible = maxCols - anchorCell.Column + 1
+    End If
+
+    Dim targetRange As Range
+    Set targetRange = anchorCell.Resize(rowsVisible, colsVisible)
 
     On Error Resume Next
-    ActiveWindow.Zoom = CDbl(zoomValue)
+    Application.Goto targetRange, True
     On Error GoTo 0
 End Sub
+
+Private Function GetCurrentWindowZoom(ByVal activeWin As Object) As Double
+    If activeWin Is Nothing Then Exit Function
+    On Error Resume Next
+    GetCurrentWindowZoom = CDbl(activeWin.Zoom)
+    If Err.Number <> 0 Then
+        GetCurrentWindowZoom = 0#
+        Err.Clear
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function ClampZoom(ByVal value As Double) As Double
+    Const MIN_ZOOM As Double = 10#
+    Const MAX_ZOOM As Double = 400#
+
+    If value < MIN_ZOOM Then
+        ClampZoom = MIN_ZOOM
+    ElseIf value > MAX_ZOOM Then
+        ClampZoom = MAX_ZOOM
+    Else
+        ClampZoom = value
+    End If
+End Function
 
 Private Function NormalizeScreenCode(ByVal screenCode As String) As String
     NormalizeScreenCode = UCase$(Trim$(screenCode))

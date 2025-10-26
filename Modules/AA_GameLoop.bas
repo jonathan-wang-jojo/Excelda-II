@@ -183,10 +183,12 @@ Private Sub UpdateLoop()
         If Not m_SpriteManager Is Nothing Then m_SpriteManager.RenderInterpolated alpha
         On Error GoTo ErrorHandler
 
-        Application.ScreenUpdating = True
+    Dim wasUpdating As Boolean
+    wasUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = True
         Application.CutCopyMode = False
         DoEvents
-        Application.ScreenUpdating = False
+    Application.ScreenUpdating = wasUpdating
 
         If IsQuitRequested() Then
             m_IsRunning = False
@@ -293,7 +295,7 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
             bufferedDir = ""
         End If
     End If
-
+    
     ' Evaluate collision state after resolving buffered intent
     Dim blocked As Boolean
     blocked = False
@@ -306,7 +308,7 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
     ' Update direction
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = attemptedDir
     m_GameState.MoveDir = attemptedDir
-    
+
     ' Process actions
     m_ActionManager.ProcessAction KEY_C
     m_ActionManager.ProcessAction KEY_D
