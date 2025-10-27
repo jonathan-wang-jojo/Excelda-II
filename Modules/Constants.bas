@@ -7,11 +7,12 @@ Public Const DEFAULT_GAME_SPEED As Long = 16
 Public Const MIN_GAME_SPEED As Long = 8
 Public Const MAX_GAME_SPEED As Long = 200
 Public Const DEFAULT_LINK_SPEED As Double = 24#
+Public Const MINOTAUR_LINK_SPEED As Double = 5#
 Public Const MIN_LINK_SPEED As Double = 2#
 Public Const MAX_LINK_SPEED As Double = 60#
 Public Const LINK_SPEED_MULTIPLIER As Double = 0.75
 Public Const MIN_PIXELS_PER_TICK As Double = 1#
-Public Const ANIMATION_TICKS_PER_FRAME As Long = 4
+Public Const ANIMATION_TICKS_PER_FRAME As Long = 5
 Public Const INPUT_BUFFER_SECONDS As Double = 0.03
 Public Const FIXED_FRAME_SECONDS As Double = 1# / TICK_RATE
 Public Const DEFAULT_FRAME_SECONDS As Double = DEFAULT_GAME_SPEED / 1000#
@@ -87,5 +88,6 @@ Public Const SCROLL_CODE_DIRECT_UP As String = "4"
 Public Const SCROLL_AMOUNT_VERTICAL As Long = 32
 Public Const SCROLL_AMOUNT_HORIZONTAL As Long = 60
 
-' Default spawn location for a new game
+' Default spawn locations
 Public Const DEFAULT_START_CELL As String = "CO598"
+Public Const MINOTAUR_START_CELL As String = "DZ47"

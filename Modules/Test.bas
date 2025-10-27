@@ -7,7 +7,7 @@ Call ResetAllEnemies
 'hide all pictures
 Dim sh As Shape
 
-For Each sh In Sheets("Game1").Shapes
+For Each sh In Sheets(SHEET_GAME).Shapes
 
 If sh.Type = msoPicture Then
     sh.Visible = False

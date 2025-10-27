@@ -6,6 +6,7 @@ Private Const SCREEN_COLUMN_LABEL_ROW As Long = 1
 Private Const SCREEN_COLUMN_OFFSET_ROW As Long = 2
 Private Const DEFAULT_VISIBLE_ROWS As Long = 33
 Private Const DEFAULT_VISIBLE_COLUMNS As Long = 66
+Private Const MINOTAUR_TARGET_ZOOM As Long = 140
 
 Private Type ViewportData
     VisibleRows As Long
@@ -48,7 +49,6 @@ End Sub
 '                              PUBLIC API
 '===================================================================================
 Public Sub AlignToLink()
-    On Error Resume Next
     Dim spriteManager As SpriteManager
     Set spriteManager = SpriteManagerInstance()
     If spriteManager Is Nothing Then Exit Sub
@@ -60,7 +60,6 @@ Public Sub AlignToLink()
     Dim linkCell As Range
     Set linkCell = linkSprite.TopLeftCell
     If linkCell Is Nothing Then Exit Sub
-    On Error GoTo 0
 
     ApplyViewportForCell linkCell
 End Sub
@@ -91,24 +90,6 @@ Public Sub FocusOnScreen(ByVal screenCode As String)
     GoToViewport anchor
 End Sub
 
-Public Sub RefreshVisibleDimensions()
-    Dim gs As GameState
-    Set gs = GameStateInstance()
-    If gs Is Nothing Then Exit Sub
-    If gs.CurrentScreen = "" Then Exit Sub
-
-    Dim ws As Worksheet
-    On Error Resume Next
-    Set ws = Sheets(gs.CurrentScreen)
-    On Error GoTo 0
-    If ws Is Nothing Then Exit Sub
-
-    CaptureVisibleDimensions ws
-End Sub
-
-'===================================================================================
-'                              CORE HELPERS
-'===================================================================================
 Private Sub ApplyViewportForCell(ByVal cell As Range)
     If cell Is Nothing Then Exit Sub
 
@@ -144,6 +125,21 @@ Private Function ComputeAnchorForCell(ByVal cell As Range) As Range
 
     Set ComputeAnchorForCell = ws.Cells(topRow, leftColumn)
 End Function
+
+Public Sub RefreshVisibleDimensions()
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+    If gs.CurrentScreen = "" Then Exit Sub
+
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = Sheets(gs.CurrentScreen)
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+
+    CaptureVisibleDimensions ws
+End Sub
 
 Private Function FindAnchorForScreen(ByVal ws As Worksheet, ByVal screenCode As String) As Range
     Dim code As String
@@ -290,23 +286,240 @@ End Sub
 Private Sub ScrollToAnchor(ByVal anchorCell As Range)
     If anchorCell Is Nothing Then Exit Sub
 
-    On Error Resume Next
-    Application.Goto anchorCell, False
-    On Error GoTo 0
-
     Dim win As Object
     On Error Resume Next
     Set win = ActiveWindow
     On Error GoTo 0
     If win Is Nothing Then Exit Sub
 
+    Dim previousUpdating As Boolean
+    previousUpdating = Application.ScreenUpdating
+    If previousUpdating Then Application.ScreenUpdating = False
+
+    Dim visibleRows As Long
+    Dim visibleColumns As Long
+    Dim currentVisible As Range
     On Error Resume Next
-    win.ScrollRow = anchorCell.Row
-    win.ScrollColumn = anchorCell.Column
-    anchorCell.Select
+    Set currentVisible = win.VisibleRange
     On Error GoTo 0
+    If Not currentVisible Is Nothing Then
+        visibleRows = currentVisible.Rows.Count
+        visibleColumns = currentVisible.Columns.Count
+    End If
+    If visibleRows <= 0 Then visibleRows = DEFAULT_VISIBLE_ROWS
+    If visibleColumns <= 0 Then visibleColumns = DEFAULT_VISIBLE_COLUMNS
+
+    Dim sheetMaxTop As Long
+    Dim sheetMaxLeft As Long
+    sheetMaxTop = anchorCell.Worksheet.Rows.Count - visibleRows + 1
+    sheetMaxLeft = anchorCell.Worksheet.Columns.Count - visibleColumns + 1
+    If sheetMaxTop < 1 Then sheetMaxTop = 1
+    If sheetMaxLeft < 1 Then sheetMaxLeft = 1
+
+    Dim targetTop As Long
+    Dim targetLeft As Long
+    targetTop = ClampLong(anchorCell.Row, 1, sheetMaxTop)
+    targetLeft = ClampLong(anchorCell.Column, 1, sheetMaxLeft)
+
+    ApplyCameraBoundsForSheet anchorCell.Worksheet, visibleRows, visibleColumns, targetTop, targetLeft
+
+    targetTop = ClampLong(targetTop, 1, sheetMaxTop)
+    targetLeft = ClampLong(targetLeft, 1, sheetMaxLeft)
+
+    On Error Resume Next
+    If win.ScrollRow <> targetTop Then win.ScrollRow = targetTop
+    If win.ScrollColumn <> targetLeft Then win.ScrollColumn = targetLeft
+    On Error GoTo 0
+
+    On Error Resume Next
+    m_View.LastAnchor = anchorCell.Worksheet.Cells(targetTop, targetLeft).Address(False, False)
+    On Error GoTo 0
+
+    If previousUpdating Then Application.ScreenUpdating = True
+End Sub
+
+Public Sub MaintainLinkViewport(Optional ByVal rowMargin As Long = 6, Optional ByVal columnMargin As Long = 10)
+    Dim spriteManager As SpriteManager
+    Set spriteManager = SpriteManagerInstance()
+    If spriteManager Is Nothing Then Exit Sub
+
+    Dim linkShape As Shape
+    Set linkShape = spriteManager.LinkSprite
+    If linkShape Is Nothing Then Exit Sub
+
+    Dim linkCell As Range
+    Set linkCell = linkShape.TopLeftCell
+    If linkCell Is Nothing Then Exit Sub
+
+    Dim ws As Worksheet
+    Set ws = linkCell.Worksheet
+
+    Dim win As Window
+    On Error Resume Next
+    Set win = ActiveWindow
+    On Error GoTo 0
+    If win Is Nothing Then Exit Sub
+
+    If Not ws Is ActiveSheet Then
+        ws.Activate
+        On Error Resume Next
+        Set win = ActiveWindow
+        On Error GoTo 0
+        If win Is Nothing Then Exit Sub
+    End If
+
+    If ws Is Sheet9 Then
+        EnsureWindowZoom win, MINOTAUR_TARGET_ZOOM
+    End If
+
+    Dim visible As Range
+    On Error Resume Next
+    Set visible = win.VisibleRange
+    On Error GoTo 0
+    If visible Is Nothing Then Exit Sub
+
+    Dim topRow As Long
+    Dim leftColumn As Long
+    Dim visibleRows As Long
+    Dim visibleColumns As Long
+    topRow = win.ScrollRow
+    leftColumn = win.ScrollColumn
+    visibleRows = visible.Rows.Count
+    visibleColumns = visible.Columns.Count
+    If visibleRows <= 0 Then visibleRows = DEFAULT_VISIBLE_ROWS
+    If visibleColumns <= 0 Then visibleColumns = DEFAULT_VISIBLE_COLUMNS
+
+    Dim bottomRow As Long
+    Dim rightColumn As Long
+    bottomRow = topRow + visibleRows - 1
+    rightColumn = leftColumn + visibleColumns - 1
+
+    Dim desiredTop As Long
+    Dim desiredLeft As Long
+
+    If ws Is Sheet9 Then
+        Dim rowHeight As Double
+        Dim columnWidth As Double
+        rowHeight = linkCell.Height
+        columnWidth = linkCell.Width
+        If rowHeight <= 0# Then rowHeight = 1#
+        If columnWidth <= 0# Then columnWidth = 1#
+
+        Dim spriteHeightInRows As Double
+        Dim spriteWidthInColumns As Double
+        spriteHeightInRows = linkShape.Height / rowHeight
+        spriteWidthInColumns = linkShape.Width / columnWidth
+        If spriteHeightInRows <= 0# Then spriteHeightInRows = 1#
+        If spriteWidthInColumns <= 0# Then spriteWidthInColumns = 1#
+
+        Dim centerRowZero As Double
+        Dim centerColumnZero As Double
+        centerRowZero = (linkCell.Row - 1) + (linkShape.Top - linkCell.Top) / rowHeight + (spriteHeightInRows / 2#)
+        centerColumnZero = (linkCell.Column - 1) + (linkShape.Left - linkCell.Left) / columnWidth + (spriteWidthInColumns / 2#)
+
+        Dim desiredTopZero As Double
+        Dim desiredLeftZero As Double
+        desiredTopZero = centerRowZero - (visibleRows / 2#)
+        desiredLeftZero = centerColumnZero - (visibleColumns / 2#)
+
+        desiredTop = CLng(Int(desiredTopZero) + 1)
+        desiredLeft = CLng(Int(desiredLeftZero) + 1)
+    Else
+        desiredTop = topRow
+        desiredLeft = leftColumn
+
+        If linkCell.Row < topRow + rowMargin Then
+            desiredTop = linkCell.Row - rowMargin
+        ElseIf linkCell.Row > bottomRow - rowMargin Then
+            desiredTop = linkCell.Row + rowMargin - visibleRows + 1
+        End If
+
+        If linkCell.Column < leftColumn + columnMargin Then
+            desiredLeft = linkCell.Column - columnMargin
+        ElseIf linkCell.Column > rightColumn - columnMargin Then
+            desiredLeft = linkCell.Column + columnMargin - visibleColumns + 1
+        End If
+    End If
+
+    Dim maxTop As Long
+    Dim maxLeft As Long
+    maxTop = ws.Rows.Count - visibleRows + 1
+    maxLeft = ws.Columns.Count - visibleColumns + 1
+    If maxTop < 1 Then maxTop = 1
+    If maxLeft < 1 Then maxLeft = 1
+
+    desiredTop = ClampLong(desiredTop, 1, maxTop)
+    desiredLeft = ClampLong(desiredLeft, 1, maxLeft)
+
+    ApplyCameraBoundsForSheet ws, visibleRows, visibleColumns, desiredTop, desiredLeft
+
+    desiredTop = ClampLong(desiredTop, 1, maxTop)
+    desiredLeft = ClampLong(desiredLeft, 1, maxLeft)
+
+    If desiredTop <> topRow Or desiredLeft <> leftColumn Then
+        Dim previousUpdating As Boolean
+        previousUpdating = Application.ScreenUpdating
+        If previousUpdating Then Application.ScreenUpdating = False
+
+        On Error Resume Next
+        If desiredTop <> topRow Then win.ScrollRow = desiredTop
+        If desiredLeft <> leftColumn Then win.ScrollColumn = desiredLeft
+        On Error GoTo 0
+
+        If previousUpdating Then Application.ScreenUpdating = True
+
+        On Error Resume Next
+        m_View.LastAnchor = ws.Cells(desiredTop, desiredLeft).Address(False, False)
+        On Error GoTo 0
+    End If
+End Sub
+
+Private Function ClampLong(ByVal value As Long, ByVal minValue As Long, ByVal maxValue As Long) As Long
+    If maxValue < minValue Then
+        ClampLong = minValue
+        Exit Function
+    End If
+    If value < minValue Then value = minValue
+    If value > maxValue Then value = maxValue
+    ClampLong = value
+End Function
+
+Private Sub ApplyCameraBoundsForSheet(ByVal ws As Worksheet, ByVal visibleRows As Long, ByVal visibleColumns As Long, ByRef topRow As Long, ByRef leftColumn As Long)
+    If ws Is Sheet9 Then
+        Const MIN_COLUMN As Long = 101 ' CW
+        Const MAX_COLUMN As Long = 287 ' KA
+        Const MIN_ROW As Long = 17
+        Const MAX_ROW As Long = 82
+
+        Dim allowedMinLeft As Long
+        Dim allowedMaxLeft As Long
+        allowedMinLeft = MIN_COLUMN
+        allowedMaxLeft = MAX_COLUMN - visibleColumns + 1
+        If allowedMaxLeft < allowedMinLeft Then allowedMaxLeft = allowedMinLeft
+
+        leftColumn = ClampLong(leftColumn, allowedMinLeft, allowedMaxLeft)
+
+        Dim allowedMinTop As Long
+        Dim allowedMaxTop As Long
+        allowedMinTop = MIN_ROW
+        allowedMaxTop = MAX_ROW - visibleRows + 1
+        If allowedMaxTop < allowedMinTop Then allowedMaxTop = allowedMinTop
+
+        topRow = ClampLong(topRow, allowedMinTop, allowedMaxTop)
+    End If
 End Sub
 
 Private Function NormalizeScreenCode(ByVal screenCode As String) As String
     NormalizeScreenCode = UCase$(Trim$(screenCode))
 End Function
+
+Private Sub EnsureWindowZoom(ByVal win As Window, ByVal targetZoom As Long)
+    If win Is Nothing Then Exit Sub
+    If targetZoom <= 0 Then Exit Sub
+
+    On Error Resume Next
+    If win.Zoom <> targetZoom Then
+        win.Zoom = targetZoom
+    End If
+    On Error GoTo 0
+End Sub

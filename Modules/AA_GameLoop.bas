@@ -23,6 +23,9 @@ Private m_InGameMode As Boolean
 Private m_IsRunning As Boolean
 Private m_MoveBlocked As Boolean
 Private m_PendingStartCell As String
+Private m_CustomGameSheet As String
+Private m_StopClearCustomSheetOverride As Variant
+Private m_PostStopActivationSheet As String
 
 '###################################################################################
 '                              ENTRY POINT
@@ -40,7 +43,7 @@ Public Sub Start()
     Exit Sub
     
 ErrorHandler:
-    StopGameLoop
+    PerformGameStopCleanup
     MsgBox "Game Error: " & Err.Description, vbCritical
 End Sub
 
@@ -53,6 +56,40 @@ Public Sub PrepareNewGameStart(Optional ByVal startCell As String = DEFAULT_STAR
         m_PendingStartCell = trimmed
     End If
 End Sub
+
+Public Sub ConfigureGameSheet(ByVal sheetName As String)
+    m_CustomGameSheet = Trim$(sheetName)
+End Sub
+
+Public Sub ResetGameOnSheet(ByVal sheetName As String, Optional ByVal startCell As String = DEFAULT_START_CELL)
+    ConfigureGameSheet sheetName
+    ResetGame startCell
+End Sub
+
+Public Sub StartNewGameOnSheet(ByVal sheetName As String, Optional ByVal startCell As String = DEFAULT_START_CELL)
+    ConfigureGameSheet sheetName
+    StartNewGame startCell
+End Sub
+
+Private Function ActiveGameSheetName() As String
+    If Trim$(m_CustomGameSheet) <> "" Then
+        ActiveGameSheetName = Trim$(m_CustomGameSheet)
+    Else
+        ActiveGameSheetName = SHEET_GAME
+    End If
+End Function
+
+Private Function ResolveGameWorksheet() As Worksheet
+    Dim sheetName As String
+    sheetName = ActiveGameSheetName()
+
+    If Not SheetExists(sheetName) Then
+        Err.Raise vbObjectError + 201, "AA_GameLoop.ResolveGameWorksheet", _
+                  "Game sheet '" & sheetName & "' not found."
+    End If
+
+    Set ResolveGameWorksheet = Sheets(sheetName)
+End Function
 
 Public Sub StartNewGame(Optional ByVal startCell As String = DEFAULT_START_CELL)
     ' Convenience entry point for menu buttons: reset to a fresh game state, then start the loop
@@ -68,6 +105,9 @@ End Sub
 Public Sub ResetGame(Optional ByVal startCell As String = DEFAULT_START_CELL)
     On Error GoTo ResetError
 
+    m_StopClearCustomSheetOverride = Empty
+    m_PostStopActivationSheet = ""
+
     Dim desiredStart As String
     desiredStart = Trim$(startCell)
     If desiredStart = "" Then desiredStart = DEFAULT_START_CELL
@@ -76,12 +116,17 @@ Public Sub ResetGame(Optional ByVal startCell As String = DEFAULT_START_CELL)
     previousUpdating = Application.ScreenUpdating
     Application.ScreenUpdating = False
 
-    StopGameLoop
+    Dim clearCustomSheet As Boolean
+    clearCustomSheet = (Trim$(m_CustomGameSheet) = "")
+
+    StopGameLoop clearCustomSheet
 
     m_IsRunning = False
     m_MoveBlocked = False
 
-    Sheets(SHEET_GAME).Activate
+    Dim wsGame As Worksheet
+    Set wsGame = ResolveGameWorksheet()
+    wsGame.Activate
 
     ResetAllManagers
 
@@ -91,25 +136,29 @@ Public Sub ResetGame(Optional ByVal startCell As String = DEFAULT_START_CELL)
     Set m_EnemyManager = EnemyManagerInstance()
     Set m_SceneManager = SceneManagerInstance()
 
+    ApplySpriteDefinitionsForSheet wsGame
+
     Dim spriteName As String
-    spriteName = FindLinkSprite(SHEET_GAME)
+    spriteName = FindLinkSprite(wsGame.Name)
     If spriteName = "" Then
-        Err.Raise vbObjectError + 302, "ResetGame", "Link sprite not found on sheet " & SHEET_GAME
+        Err.Raise vbObjectError + 302, "ResetGame", "Player sprite not found on sheet " & wsGame.Name
     End If
 
-    m_SpriteManager.BindLinkSprite SHEET_GAME, spriteName
+    m_SpriteManager.BindLinkSprite wsGame.Name, spriteName
     m_SpriteManager.UpdateVisibility
     m_ActionManager.Initialize
     m_EnemyManager.Initialize
-    m_SceneManager.ActivateSceneBySheet SHEET_GAME
+    m_SceneManager.ActivateSceneBySheet wsGame.Name
 
     m_GameState.RefreshFromDataSheet
-    m_GameState.CurrentScreen = SHEET_GAME
+    ApplySheetSpecificTuning wsGame
+    m_GameState.CurrentScreen = wsGame.Name
     m_GameState.MoveDir = ""
     m_GameState.IsFalling = False
 
     m_PendingStartCell = desiredStart
     ApplyPendingStartState
+    If Not m_SpriteManager Is Nothing Then m_SpriteManager.ResyncFramePositions
 
     Dim viewport As ViewportManager
     Set viewport = ViewportManagerInstance()
@@ -130,6 +179,9 @@ Private Sub StartGame()
     ' Initialize everything needed for a new game
     On Error GoTo ErrorHandler
     
+    m_StopClearCustomSheetOverride = Empty
+    m_PostStopActivationSheet = ""
+
     ' Reset managers
     Call ResetAllManagers
     
@@ -141,10 +193,14 @@ Private Sub StartGame()
     Set m_SceneManager = SceneManagerInstance()
     
     ' Setup starting state
+    Dim wsGame As Worksheet
+    Set wsGame = ResolveGameWorksheet()
+    wsGame.Activate
+
+    ApplySpriteDefinitionsForSheet wsGame
+
     Dim screen As String
-    screen = ActiveSheet.Name
-    If screen = SHEET_TITLE Then screen = SHEET_GAME
-    Sheets(screen).Activate
+    screen = wsGame.Name
 
     m_SceneManager.ActivateSceneBySheet screen
 
@@ -169,8 +225,10 @@ Private Sub StartGame()
     
     ' Set game state
     m_GameState.RefreshFromDataSheet
+    ApplySheetSpecificTuning wsGame
     m_GameState.CurrentScreen = screen
     m_GameState.MoveDir = direction
+    If Not m_SpriteManager Is Nothing Then m_SpriteManager.ResyncFramePositions
     
     ' Sync state
     m_GameState.LinkCellAddress = m_SpriteManager.LinkSprite.TopLeftCell.Address
@@ -178,6 +236,7 @@ Private Sub StartGame()
 
     If m_PendingStartCell <> "" Then
         ApplyPendingStartState
+        If Not m_SpriteManager Is Nothing Then m_SpriteManager.ResyncFramePositions
     End If
     
     ' Align view and run screen setup
@@ -197,10 +256,9 @@ Private Sub StartGame()
     Exit Sub
     
 ErrorHandler:
-    RestoreExcelNavigation
-    Call ExitGameMode
+    PerformGameStopCleanup
     MsgBox "Start Error: " & Err.Description, vbCritical
-    Sheets(SHEET_TITLE).Activate
+    If SheetExists(SHEET_TITLE) Then Sheets(SHEET_TITLE).Activate
 End Sub
 
 '###################################################################################
@@ -232,6 +290,7 @@ Private Sub UpdateLoop()
             Dim deltaSeconds As Double
             deltaSeconds = m_GameState.BeginFrame(targetStep)
             m_GameState.RefreshFromDataSheet
+            ApplySheetSpecificTuning
             Update deltaSeconds
 
             accumulator = accumulator - targetStep
@@ -267,11 +326,11 @@ Private Sub UpdateLoop()
 
     Loop
 
-    StopGameLoop
+    PerformGameStopCleanup
     Exit Sub
 
 ErrorHandler:
-    StopGameLoop
+    PerformGameStopCleanup
     MsgBox "Update Error: " & Err.Description, vbCritical
 End Sub
 
@@ -300,6 +359,7 @@ Private Sub Update(ByVal deltaSeconds As Double)
     ' Handle input and update
     Call HandleInput(deltaSeconds)
     Call HandleTriggers
+    If Not m_IsRunning Then Exit Sub
     Call HandleEnemies
     Call UpdateSprites(deltaSeconds)
 End Sub
@@ -406,6 +466,12 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     m_SpriteManager.UpdateFrame effectiveDir, facingDir, moveSpeed, deltaSeconds
     m_SpriteManager.UpdatePosition
     m_SpriteManager.UpdateVisibility
+
+    Dim viewport As ViewportManager
+    Set viewport = ViewportManagerInstance()
+    If Not viewport Is Nothing Then
+        viewport.MaintainLinkViewport
+    End If
     On Error Resume Next
     Dim linkCell As Range
     Set linkCell = m_SpriteManager.LinkSprite.TopLeftCell
@@ -481,25 +547,101 @@ Private Function IsKeyPressed(ByVal vKey As Integer) As Boolean
 End Function
 
 Private Function FindLinkSprite(ByVal sheetName As String) As String
-    ' Find Link sprite on sheet
-    On Error Resume Next
+    ' Find active player sprite on sheet using configured frame names
     Dim ws As Worksheet
+    On Error Resume Next
     Set ws = Sheets(sheetName)
-    
-    Dim names As Variant
-    names = Array("LinkDown1", "LinkDown2", "LinkUp1", "LinkUp2", _
-                  "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
-    
-    Dim i As Integer
-    For i = LBound(names) To UBound(names)
-        If Not ws.Shapes(names(i)) Is Nothing Then
-            FindLinkSprite = names(i)
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Function
+
+    Dim spriteManager As SpriteManager
+    Set spriteManager = SpriteManagerInstance()
+
+    Dim configuredNames As Variant
+    configuredNames = spriteManager.GetConfiguredFrameNames()
+
+    Dim candidate As Variant
+    For Each candidate In configuredNames
+        Dim frameName As String
+        frameName = Trim$(CStr(candidate))
+        If frameName <> "" Then
+            Dim frameShape As Shape
+            Set frameShape = Nothing
+            On Error Resume Next
+            Set frameShape = ws.Shapes(frameName)
+            On Error GoTo 0
+            If Not frameShape Is Nothing Then
+                FindLinkSprite = frameName
+                Exit Function
+            End If
+        End If
+    Next candidate
+
+    ' Fallback to legacy Link naming in case custom configuration was not provided
+    Dim legacyNames As Variant
+    legacyNames = Array("LinkDown1", "LinkDown2", "LinkUp1", "LinkUp2", _
+                        "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+
+    For Each candidate In legacyNames
+        Dim legacyName As String
+        legacyName = CStr(candidate)
+        Dim legacyShape As Shape
+        Set legacyShape = Nothing
+        On Error Resume Next
+        Set legacyShape = ws.Shapes(legacyName)
+        On Error GoTo 0
+        If Not legacyShape Is Nothing Then
+            FindLinkSprite = legacyName
             Exit Function
         End If
-    Next i
-
-    FindLinkSprite = ""
+    Next candidate
 End Function
+
+Private Sub ApplySpriteDefinitionsForSheet(ByVal ws As Worksheet)
+    Dim sm As SpriteManager
+    Set sm = SpriteManagerInstance()
+
+    ' Reset to defaults before applying overrides for the active sheet.
+    sm.Initialize
+
+    If ws Is Nothing Then Exit Sub
+
+    If ws Is Sheet9 Then
+        Sheet9.ApplyMinotaurSpriteConfig
+    End If
+End Sub
+
+Private Sub ApplySheetSpecificTuning(Optional ByVal wsOverride As Worksheet)
+    Dim targetSheet As Worksheet
+
+    If wsOverride Is Nothing Then
+        Dim currentScreenName As String
+        currentScreenName = ""
+        If Not m_GameState Is Nothing Then currentScreenName = m_GameState.CurrentScreen
+        If currentScreenName <> "" Then
+            On Error Resume Next
+            Set targetSheet = Sheets(currentScreenName)
+            On Error GoTo 0
+        End If
+    Else
+        Set targetSheet = wsOverride
+    End If
+
+    If targetSheet Is Nothing Then Exit Sub
+
+    If targetSheet Is Sheet9 Then
+        Dim gs As GameState
+        If m_GameState Is Nothing Then
+            Set gs = GameStateInstance()
+        Else
+            Set gs = m_GameState
+        End If
+
+        If Not gs Is Nothing Then
+            gs.MoveSpeed = MINOTAUR_LINK_SPEED
+        End If
+    End If
+End Sub
 
 '###################################################################################
 '                              Trigger System
@@ -524,6 +666,10 @@ Private Sub HandleTriggers()
     code = Trim$(CStr(triggerCell.Value))
     If code = "" Then Exit Sub
     If UCase$(code) = "B" Then Exit Sub
+    If StrComp(code, "TRIGGER", vbTextCompare) = 0 Then
+        HandleEndScreenTrigger
+        Exit Sub
+    End If
     
     ' Update state
     m_GameState.LinkCellAddress = linkCell.Address
@@ -566,6 +712,13 @@ Private Sub HandleTriggers()
         Case "ET": Call EnemyTrigger(code)
         Case "SE": Call SpecialEventTrigger(code)
     End Select
+End Sub
+
+Private Sub HandleEndScreenTrigger()
+    m_StopClearCustomSheetOverride = False
+    m_PostStopActivationSheet = "End Screen"
+    m_CustomGameSheet = ""
+    m_IsRunning = False
 End Sub
 
 '###################################################################################
@@ -785,7 +938,10 @@ Private Sub FinalizeRelocation(ByVal scrollDir As String, ByVal offsetDir As Str
     On Error GoTo 0
 
     If Not m_ActionManager Is Nothing Then m_ActionManager.Initialize
-    If Not m_SpriteManager Is Nothing Then m_SpriteManager.UpdateVisibility
+    If Not m_SpriteManager Is Nothing Then
+        m_SpriteManager.UpdateVisibility
+        m_SpriteManager.ResyncFramePositions
+    End If
 
     Dim setupMacro As String
     setupMacro = gs.CurrentScreenCode
@@ -1071,7 +1227,28 @@ Private Sub ExitGameMode()
     On Error GoTo 0
 End Sub
 
-Private Sub StopGameLoop()
+Private Sub PerformGameStopCleanup()
+    Dim clearCustomSheet As Boolean
+    If IsEmpty(m_StopClearCustomSheetOverride) Then
+        clearCustomSheet = True
+    Else
+        clearCustomSheet = CBool(m_StopClearCustomSheetOverride)
+    End If
+
+    StopGameLoop clearCustomSheet
+
+    If m_PostStopActivationSheet <> "" Then
+        On Error Resume Next
+        Sheets(m_PostStopActivationSheet).Activate
+        On Error GoTo 0
+        m_CustomGameSheet = ""
+    End If
+
+    m_StopClearCustomSheetOverride = Empty
+    m_PostStopActivationSheet = ""
+End Sub
+
+Private Sub StopGameLoop(Optional ByVal clearCustomSheet As Boolean = True)
     ' Centralized stop/cleanup logic used by the loop and error handlers
     On Error Resume Next
     m_IsRunning = False
@@ -1082,9 +1259,12 @@ Private Sub StopGameLoop()
     Application.CutCopyMode = False
     Application.ScreenUpdating = True
     m_PendingStartCell = ""
-    ' Try to activate title sheet if present
-    If SheetExists(SHEET_TITLE) Then
-        Sheets(SHEET_TITLE).Activate
+    If clearCustomSheet Then
+        m_CustomGameSheet = ""
+        ' Try to activate title sheet if present
+        If SheetExists(SHEET_TITLE) Then
+            Sheets(SHEET_TITLE).Activate
+        End If
     End If
     On Error GoTo 0
 End Sub
