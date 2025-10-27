@@ -297,7 +297,7 @@ Sub calculateScreenLocation(ByVal scrollDir As String, ByVal direction As String
     If primaryDir = "" Then
         primaryDir = ScrollCodeToDirectionLetter(scrollCode)
         If primaryDir = "" Then
-            primaryDir = ExtractDirectionalComponent(gs.LastDir, orientation)
+            primaryDir = ExtractDirectionalComponent(gs.lastDir, orientation)
         End If
     End If
 
@@ -392,3 +392,4 @@ Sub alignScreen()
 ErrorHandler:
     MsgBox "Error in alignScreen: " & Err.Description, vbCritical, "Align Error"
 End Sub
+

@@ -10,7 +10,7 @@ Private Type SpriteData
     LinkSprite As Shape
     Top As Double
     Left As Double
-    Frame As Integer
+    Frame As Integer '0 denotes idle, positive values point to run frames
     LastFrameShape As String
     PendingFrameName As String
     PendingHideName As String
@@ -20,6 +20,253 @@ Private Type SpriteData
 End Type
 
 Private m_Sprite As SpriteData
+ 
+Private Enum SpriteDirectionIndex
+    SpriteDirUnknown = -1
+    SpriteDirUp = 0
+    SpriteDirRight = 1
+    SpriteDirDown = 2
+    SpriteDirLeft = 3
+End Enum
+
+Private Type SpriteFrameDefinition
+    Idle As String
+    RunFrames As Variant
+End Type
+
+Private Const DEFAULT_IDLE_DIRECTION As Long = SpriteDirDown
+
+Private m_PlayerFrameDefs(SpriteDirUp To SpriteDirLeft) As SpriteFrameDefinition
+
+'===================================================================================
+'                              SPRITE DEFINITIONS
+'===================================================================================
+Private Sub ConfigureDefaultPlayerFrames()
+    Dim dir As SpriteDirectionIndex
+    For dir = SpriteDirUp To SpriteDirLeft
+        m_PlayerFrameDefs(dir).Idle = ""
+        m_PlayerFrameDefs(dir).RunFrames = Empty
+    Next dir
+
+    m_PlayerFrameDefs(SpriteDirDown).Idle = "LinkDown1"
+    m_PlayerFrameDefs(SpriteDirDown).RunFrames = Array("LinkDown1", "LinkDown2")
+
+    m_PlayerFrameDefs(SpriteDirUp).Idle = "LinkUp1"
+    m_PlayerFrameDefs(SpriteDirUp).RunFrames = Array("LinkUp1", "LinkUp2")
+
+    m_PlayerFrameDefs(SpriteDirLeft).Idle = "LinkLeft1"
+    m_PlayerFrameDefs(SpriteDirLeft).RunFrames = Array("LinkLeft1", "LinkLeft2")
+
+    m_PlayerFrameDefs(SpriteDirRight).Idle = "LinkRight1"
+    m_PlayerFrameDefs(SpriteDirRight).RunFrames = Array("LinkRight1", "LinkRight2")
+End Sub
+
+Private Function ResolveDirectionIndex(ByVal direction As String) As SpriteDirectionIndex
+    If InStr(direction, "U") > 0 Then
+        ResolveDirectionIndex = SpriteDirUp
+    ElseIf InStr(direction, "D") > 0 Then
+        ResolveDirectionIndex = SpriteDirDown
+    ElseIf InStr(direction, "L") > 0 Then
+        ResolveDirectionIndex = SpriteDirLeft
+    ElseIf InStr(direction, "R") > 0 Then
+        ResolveDirectionIndex = SpriteDirRight
+    Else
+        ResolveDirectionIndex = SpriteDirUnknown
+    End If
+End Function
+
+Private Function DirectionSuffix(ByVal directionIndex As SpriteDirectionIndex) As String
+    Select Case directionIndex
+        Case SpriteDirUp
+            DirectionSuffix = "Up"
+        Case SpriteDirRight
+            DirectionSuffix = "Right"
+        Case SpriteDirLeft
+            DirectionSuffix = "Left"
+        Case Else
+            DirectionSuffix = "Down"
+    End Select
+End Function
+
+Private Function DirectionIndexValid(ByVal directionIndex As SpriteDirectionIndex) As Boolean
+    DirectionIndexValid = (directionIndex >= SpriteDirUp And directionIndex <= SpriteDirLeft)
+End Function
+
+Private Function PlayerRunFrameCount(ByVal directionIndex As SpriteDirectionIndex) As Long
+    If Not DirectionIndexValid(directionIndex) Then Exit Function
+
+    Dim frames As Variant
+    frames = m_PlayerFrameDefs(directionIndex).RunFrames
+    If IsArray(frames) Then
+        PlayerRunFrameCount = UBound(frames) - LBound(frames) + 1
+    Else
+        PlayerRunFrameCount = 0
+    End If
+End Function
+
+Private Function PlayerRunFrameName(ByVal directionIndex As SpriteDirectionIndex, ByVal frameIndex As Long) As String
+    If Not DirectionIndexValid(directionIndex) Then Exit Function
+
+    Dim frames As Variant
+    frames = m_PlayerFrameDefs(directionIndex).RunFrames
+    If Not IsArray(frames) Then Exit Function
+
+    Dim lowerBound As Long
+    Dim upperBound As Long
+    lowerBound = LBound(frames)
+    upperBound = UBound(frames)
+
+    Dim resolvedIndex As Long
+    resolvedIndex = lowerBound + frameIndex - 1
+    If resolvedIndex < lowerBound Or resolvedIndex > upperBound Then Exit Function
+
+    PlayerRunFrameName = CStr(frames(resolvedIndex))
+End Function
+
+Private Function AdvanceRunFrame(ByVal currentFrame As Long, ByVal frameCount As Long) As Long
+    If frameCount <= 0 Then
+        AdvanceRunFrame = 0
+        Exit Function
+    End If
+
+    If currentFrame < 1 Or currentFrame >= frameCount Then
+        AdvanceRunFrame = 1
+    Else
+        AdvanceRunFrame = currentFrame + 1
+    End If
+End Function
+
+Private Function ResolveActiveFrameName(ByVal directionIndex As SpriteDirectionIndex, ByVal frameIndex As Long, ByVal isMoving As Boolean) As String
+    If Not DirectionIndexValid(directionIndex) Then
+        directionIndex = DEFAULT_IDLE_DIRECTION
+    End If
+
+    Dim idleName As String
+    idleName = m_PlayerFrameDefs(directionIndex).Idle
+
+    If Not isMoving Or frameIndex <= 0 Then
+        ResolveActiveFrameName = idleName
+        Exit Function
+    End If
+
+    Dim runName As String
+    runName = PlayerRunFrameName(directionIndex, frameIndex)
+    If runName <> "" Then
+        ResolveActiveFrameName = runName
+    Else
+        ResolveActiveFrameName = idleName
+    End If
+End Function
+
+Private Function IdentifyDirectionFromFrameName(ByVal frameName As String, ByRef isIdle As Boolean) As SpriteDirectionIndex
+    isIdle = False
+    If frameName = "" Then
+        IdentifyDirectionFromFrameName = SpriteDirUnknown
+        Exit Function
+    End If
+
+    Dim dir As SpriteDirectionIndex
+    For dir = SpriteDirUp To SpriteDirLeft
+        If StrComp(m_PlayerFrameDefs(dir).Idle, frameName, vbTextCompare) = 0 Then
+            isIdle = True
+            IdentifyDirectionFromFrameName = dir
+            Exit Function
+        End If
+
+        Dim frames As Variant
+        frames = m_PlayerFrameDefs(dir).RunFrames
+        If IsArray(frames) Then
+            Dim i As Long
+            For i = LBound(frames) To UBound(frames)
+                If StrComp(CStr(frames(i)), frameName, vbTextCompare) = 0 Then
+                    IdentifyDirectionFromFrameName = dir
+                    Exit Function
+                End If
+            Next i
+        End If
+    Next dir
+
+    IdentifyDirectionFromFrameName = SpriteDirUnknown
+End Function
+
+Private Function ResolveRunFrameIndex(ByVal directionIndex As SpriteDirectionIndex, ByVal frameName As String) As Long
+    If Not DirectionIndexValid(directionIndex) Then Exit Function
+    If frameName = "" Then Exit Function
+
+    Dim frames As Variant
+    frames = m_PlayerFrameDefs(directionIndex).RunFrames
+    If Not IsArray(frames) Then Exit Function
+
+    Dim lowerBound As Long
+    lowerBound = LBound(frames)
+
+    Dim i As Long
+    For i = lowerBound To UBound(frames)
+        If StrComp(CStr(frames(i)), frameName, vbTextCompare) = 0 Then
+            ResolveRunFrameIndex = (i - lowerBound) + 1
+            Exit Function
+        End If
+    Next i
+
+    ResolveRunFrameIndex = 0
+End Function
+
+Private Function AllConfiguredFrameNames() As Variant
+    Dim frameCollection As Collection
+    Set frameCollection = New Collection
+
+    Dim dir As SpriteDirectionIndex
+    For dir = SpriteDirUp To SpriteDirLeft
+        AppendFrameName frameCollection, m_PlayerFrameDefs(dir).Idle
+
+        Dim frames As Variant
+        frames = m_PlayerFrameDefs(dir).RunFrames
+        If IsArray(frames) Then
+            Dim i As Long
+            For i = LBound(frames) To UBound(frames)
+                AppendFrameName frameCollection, CStr(frames(i))
+            Next i
+        End If
+    Next dir
+
+    If frameCollection.Count = 0 Then
+        AllConfiguredFrameNames = Array()
+    Else
+        Dim result() As String
+        ReDim result(0 To frameCollection.Count - 1)
+        Dim index As Long
+        For index = 1 To frameCollection.Count
+            result(index - 1) = CStr(frameCollection(index))
+        Next index
+        AllConfiguredFrameNames = result
+    End If
+End Function
+
+Private Sub AppendFrameName(ByVal frames As Collection, ByVal frameName As String)
+    If frameName = "" Then Exit Sub
+    On Error Resume Next
+    frames.Add frameName, frameName
+    On Error GoTo 0
+End Sub
+
+Private Function ResolveInitialSpriteShape(ByVal ws As Worksheet) As Shape
+    If ws Is Nothing Then Exit Function
+
+    Dim preferredName As String
+    preferredName = m_PlayerFrameDefs(DEFAULT_IDLE_DIRECTION).Idle
+    If preferredName <> "" Then
+        Set ResolveInitialSpriteShape = ShapeIfExists(ws, preferredName)
+        If Not ResolveInitialSpriteShape Is Nothing Then Exit Function
+    End If
+
+    Dim frameName As Variant
+    For Each frameName In PlayerFrameNames()
+        Set ResolveInitialSpriteShape = ShapeIfExists(ws, CStr(frameName))
+        If Not ResolveInitialSpriteShape Is Nothing Then Exit Function
+    Next frameName
+
+    Set ResolveInitialSpriteShape = Nothing
+End Function
 
 '===================================================================================
 '                              INITIALIZATION
@@ -39,7 +286,7 @@ Private Sub ResetState()
     Set m_Sprite.LinkSprite = Nothing
     m_Sprite.Top = 0
     m_Sprite.Left = 0
-    m_Sprite.Frame = 1
+    m_Sprite.Frame = 0
     m_Sprite.LastFrameShape = ""
     m_Sprite.PendingFrameName = ""
     m_Sprite.PendingHideName = ""
@@ -52,6 +299,7 @@ End Sub
 '                              SETUP & LIFECYCLE
 '===================================================================================
 Public Sub Initialize()
+    ConfigureDefaultPlayerFrames
     ResetState
 End Sub
 
@@ -72,12 +320,20 @@ Public Sub BindLinkSprite(ByVal screenName As String, ByVal spriteName As String
     m_Sprite.PrevTop = m_Sprite.Top
     m_Sprite.PrevLeft = m_Sprite.Left
 
-    If InStr(spriteName, "1") > 0 Then
-        m_Sprite.Frame = 1
-    ElseIf InStr(spriteName, "2") > 0 Then
-        m_Sprite.Frame = 2
+    Dim bindDir As SpriteDirectionIndex
+    Dim isIdleFrame As Boolean
+    bindDir = IdentifyDirectionFromFrameName(spriteName, isIdleFrame)
+    If bindDir = SpriteDirUnknown Then
+        bindDir = DEFAULT_IDLE_DIRECTION
+    End If
+
+    If isIdleFrame Then
+        m_Sprite.Frame = 0
     Else
-        m_Sprite.Frame = 2
+        m_Sprite.Frame = ResolveRunFrameIndex(bindDir, spriteName)
+        If m_Sprite.Frame = 0 Then
+            m_Sprite.Frame = 1
+        End If
     End If
 
     m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
@@ -103,13 +359,25 @@ Public Sub Reset()
     Set gs = GameStateInstance
     
     If Not gs Is Nothing And gs.CurrentScreen <> "" Then
-        ' Try to reset to last known sprite or default to LinkDown2
-        Set m_Sprite.LinkSprite = Sheets(gs.CurrentScreen).Shapes("LinkDown2")
-        
+        Dim wsCurrent As Worksheet
+        Set wsCurrent = Sheets(gs.CurrentScreen)
+        If Not wsCurrent Is Nothing Then
+            Set m_Sprite.LinkSprite = ResolveInitialSpriteShape(wsCurrent)
+        End If
+
         If Not m_Sprite.LinkSprite Is Nothing Then
             m_Sprite.Top = m_Sprite.LinkSprite.Top
             m_Sprite.Left = m_Sprite.LinkSprite.Left
-            m_Sprite.Frame = 1
+
+            Dim resetDir As SpriteDirectionIndex
+            Dim resetIdle As Boolean
+            resetDir = IdentifyDirectionFromFrameName(m_Sprite.LinkSprite.Name, resetIdle)
+            If resetIdle Then
+                m_Sprite.Frame = 0
+            Else
+                m_Sprite.Frame = ResolveRunFrameIndex(resetDir, m_Sprite.LinkSprite.Name)
+            End If
+
             m_Sprite.LastFrameShape = m_Sprite.LinkSprite.Name
             m_Sprite.PendingFrameName = m_Sprite.LastFrameShape
             ApplyLinkVisibility m_Sprite.LinkSprite.Parent, m_Sprite.PendingFrameName, "", True
@@ -229,24 +497,6 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     Dim movedThisTick As Boolean
     movedThisTick = (newLeft <> oldLeft) Or (newTop <> oldTop)
 
-    If Not movedThisTick Then
-        If m_Sprite.Frame <> 1 Then m_Sprite.Frame = 1
-        m_Sprite.AnimTickCounter = 0
-    ElseIf ANIMATION_TICKS_PER_FRAME > 0 Then
-        m_Sprite.AnimTickCounter = m_Sprite.AnimTickCounter + 1
-        If m_Sprite.AnimTickCounter >= ANIMATION_TICKS_PER_FRAME Then
-            m_Sprite.AnimTickCounter = 0
-            If m_Sprite.Frame = 1 Then
-                m_Sprite.Frame = 2
-            Else
-                m_Sprite.Frame = 1
-            End If
-        End If
-    End If
-
-    m_Sprite.Top = newTop
-    m_Sprite.Left = newLeft
-
     If facingDir = "" Then
         If Not gs Is Nothing Then
             facingDir = gs.LastDir
@@ -254,8 +504,44 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
             facingDir = ""
         End If
     End If
-    Dim baseDir As String
-    baseDir = ResolveDirection(facingDir)
+
+    Dim directionIndex As SpriteDirectionIndex
+    directionIndex = ResolveDirectionIndex(facingDir)
+    If directionIndex = SpriteDirUnknown Then
+        directionIndex = DEFAULT_IDLE_DIRECTION
+    End If
+
+    Dim availableFrames As Long
+    availableFrames = PlayerRunFrameCount(directionIndex)
+
+    If Not movedThisTick Then
+        If m_Sprite.Frame <> 0 Then m_Sprite.Frame = 0
+        m_Sprite.AnimTickCounter = 0
+    Else
+        If availableFrames <= 0 Then
+            m_Sprite.Frame = 0
+            m_Sprite.AnimTickCounter = 0
+        Else
+            If m_Sprite.Frame <= 0 Or m_Sprite.Frame > availableFrames Then
+                m_Sprite.Frame = 1
+                m_Sprite.AnimTickCounter = 0
+            End If
+
+            If ANIMATION_TICKS_PER_FRAME > 0 Then
+                m_Sprite.AnimTickCounter = m_Sprite.AnimTickCounter + 1
+                If m_Sprite.AnimTickCounter >= ANIMATION_TICKS_PER_FRAME Then
+                    m_Sprite.AnimTickCounter = 0
+                    m_Sprite.Frame = AdvanceRunFrame(m_Sprite.Frame, availableFrames)
+                End If
+            End If
+        End If
+    End If
+
+    m_Sprite.Top = newTop
+    m_Sprite.Left = newLeft
+
+    Dim activeFrameName As String
+    activeFrameName = ResolveActiveFrameName(directionIndex, m_Sprite.Frame, movedThisTick)
 
     Dim ws As Worksheet
     If Not gs Is Nothing Then
@@ -270,11 +556,10 @@ Public Sub UpdateFrame(ByVal movementDir As String, ByVal facingDir As String, B
     End If
     If ws Is Nothing Then Exit Sub
 
-    Dim shapeName As String
-    shapeName = "Link" & baseDir & m_Sprite.Frame
+    If activeFrameName = "" Then Exit Sub
 
     Dim activeShape As Shape
-    Set activeShape = ShapeIfExists(ws, shapeName)
+    Set activeShape = ShapeIfExists(ws, activeFrameName)
     If activeShape Is Nothing Then Exit Sub
 
     Set m_Sprite.LinkSprite = activeShape
@@ -392,10 +677,29 @@ Cleanup:
 End Sub
 
 Private Function BaseFrameName(ByVal frameName As String) As String
-    If Len(frameName) <= 1 Then
+    Dim nameLength As Long
+    nameLength = Len(frameName)
+    If nameLength <= 1 Then
         BaseFrameName = frameName
+        Exit Function
+    End If
+
+    Dim index As Long
+    index = nameLength
+    Do While index >= 1
+        Dim currentChar As String
+        currentChar = Mid$(frameName, index, 1)
+        If currentChar Like "#" Then
+            index = index - 1
+        Else
+            Exit Do
+        End If
+    Loop
+
+    If index < nameLength Then
+        BaseFrameName = VBA.Left(frameName, index)
     Else
-        BaseFrameName = VBA.Left(frameName, Len(frameName) - 1)
+        BaseFrameName = frameName
     End If
 End Function
 
@@ -416,23 +720,28 @@ Public Sub ApplyLinkBounce(ByVal bounceSpeed As Long)
     
     Dim blockingValue As Variant
     
-    Select Case linkShape.Name
-        Case "LinkDown1", "LinkDown2"
+    Dim bounceDir As SpriteDirectionIndex
+    Dim bounceIdle As Boolean
+    bounceDir = IdentifyDirectionFromFrameName(linkShape.Name, bounceIdle)
+    If bounceDir = SpriteDirUnknown Then Exit Sub
+
+    Select Case bounceDir
+        Case SpriteDirDown
             blockingValue = originCell.Offset(-1, 2).Value
             If blockingValue = "" Then
                 linkShape.Top = linkShape.Top - bounceSpeed
             End If
-        Case "LinkUp1", "LinkUp2"
+        Case SpriteDirUp
             blockingValue = originCell.Offset(4, 2).Value
             If blockingValue = "" Then
                 linkShape.Top = linkShape.Top + bounceSpeed
             End If
-        Case "LinkLeft1", "LinkLeft2"
+        Case SpriteDirLeft
             blockingValue = originCell.Offset(2, 4).Value
             If blockingValue = "" Then
                 linkShape.Left = linkShape.Left + bounceSpeed
             End If
-        Case "LinkRight1", "LinkRight2"
+        Case SpriteDirRight
             blockingValue = originCell.Offset(2, -1).Value
             If blockingValue = "" Then
                 linkShape.Left = linkShape.Left - bounceSpeed
@@ -465,7 +774,7 @@ Public Sub AlignSprites(ByVal leftPos As Double, ByVal topPos As Double)
     If wsGame Is Nothing Then Exit Sub
     
     Dim frameName As Variant
-    For Each frameName In LinkFrameNames()
+    For Each frameName In PlayerFrameNames()
         Dim frameShape As Shape
         Set frameShape = ShapeIfExists(wsGame, CStr(frameName))
         If Not frameShape Is Nothing Then
@@ -478,17 +787,13 @@ Public Sub AlignSprites(ByVal leftPos As Double, ByVal topPos As Double)
 End Sub
 
 Private Function ResolveDirection(ByVal direction As String) As String
-    If InStr(direction, "U") > 0 Then
-        ResolveDirection = "Up"
-    ElseIf InStr(direction, "D") > 0 Then
-        ResolveDirection = "Down"
-    ElseIf InStr(direction, "L") > 0 Then
-        ResolveDirection = "Left"
-    ElseIf InStr(direction, "R") > 0 Then
-        ResolveDirection = "Right"
-    Else
-        ResolveDirection = "Down"
+    Dim dirIndex As SpriteDirectionIndex
+    dirIndex = ResolveDirectionIndex(direction)
+    If dirIndex = SpriteDirUnknown Then
+        dirIndex = DEFAULT_IDLE_DIRECTION
     End If
+
+    ResolveDirection = DirectionSuffix(dirIndex)
 End Function
 
 Private Sub SyncAllLinkFrames()
@@ -506,7 +811,7 @@ Private Sub SyncAllLinkFrames()
     End If
     If wsGame Is Nothing Then Exit Sub
     Dim frameName As Variant
-    For Each frameName In LinkFrameNames()
+    For Each frameName In PlayerFrameNames()
         Dim frameShape As Shape
         Set frameShape = ShapeIfExists(wsGame, CStr(frameName))
         If Not frameShape Is Nothing Then
@@ -517,9 +822,8 @@ Private Sub SyncAllLinkFrames()
     On Error GoTo 0
 End Sub
 
-Private Function LinkFrameNames() As Variant
-    LinkFrameNames = Array("LinkUp1", "LinkUp2", "LinkDown1", "LinkDown2", _
-                           "LinkLeft1", "LinkLeft2", "LinkRight1", "LinkRight2")
+Private Function PlayerFrameNames() As Variant
+    PlayerFrameNames = AllConfiguredFrameNames()
 End Function
 
 Private Function ShapeIfExists(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
@@ -561,7 +865,7 @@ Private Sub ApplyLinkVisibility(ByVal ws As Worksheet, ByVal activeName As Strin
 
     If fullRefresh Then
         Dim frameName As Variant
-        For Each frameName In LinkFrameNames()
+        For Each frameName In PlayerFrameNames()
             If CStr(frameName) <> activeName And CStr(frameName) <> previousName Then
                 HideFrame ws, CStr(frameName)
             End If
