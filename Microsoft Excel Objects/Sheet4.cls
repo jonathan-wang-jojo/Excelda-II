@@ -11,7 +11,6 @@ Private Sub CommandButton1_Click()
     DevelopmentConsole.Show
 End Sub
 
-
 Private Sub StartGameButton_Click()
     ' Activate starting screen and begin game
     Sheets("Game1").Activate

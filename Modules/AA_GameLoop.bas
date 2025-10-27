@@ -522,7 +522,8 @@ Private Sub HandleTriggers()
     Set triggerCell = mapSheet.Range(linkCell.Address).Offset(3, 2)
 
     code = Trim$(CStr(triggerCell.Value))
-    If Len(code) < 8 Then Exit Sub
+    If code = "" Then Exit Sub
+    If UCase$(code) = "B" Then Exit Sub
     
     ' Update state
     m_GameState.LinkCellAddress = linkCell.Address

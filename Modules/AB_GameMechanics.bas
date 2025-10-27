@@ -72,9 +72,20 @@ Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDi
     Dim prevCandidate As String
     Dim resolved As String
 
+    ' Pull the latest movement state recorded by the input handler so we reflect the
+    ' direction Link is actively walking when hitting a trigger (legacy behaviour).
+    Dim liveMove As String
+    liveMove = NormalizeDirectionCandidate(Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value)
+
     moveCandidate = NormalizeDirectionCandidate(moveDir)
     lastCandidate = NormalizeDirectionCandidate(lastDir)
     prevCandidate = NormalizeDirectionCandidate(Sheets(SHEET_DATA).Range(RANGE_PREVIOUS_SCROLL).Value)
+
+    resolved = ExtractDirectionalComponent(liveMove, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
 
     resolved = ExtractDirectionalComponent(moveCandidate, orientation)
     If resolved <> "" Then
@@ -89,6 +100,12 @@ Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDi
     End If
 
     resolved = ExtractDirectionalComponent(prevCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(liveMove, "")
     If resolved <> "" Then
         ResolveScrollDirection = resolved
         Exit Function
@@ -208,7 +225,7 @@ Private Function ShouldPreventRescroll(ByVal currentCell As String, ByVal newDir
     normalizedPrev = NormalizeDirectionCandidate(previousDir)
 
     ' If we're still in the same cell and direction hasn't changed, prevent rescroll
-    If currentCell = previousCell Then
+    If NormalizeDirectionCandidate(currentCell) = NormalizeDirectionCandidate(previousCell) Then
         If normalizedPrev <> "" And comparisonDir <> "" Then
             If normalizedPrev = comparisonDir Then
                 ShouldPreventRescroll = True

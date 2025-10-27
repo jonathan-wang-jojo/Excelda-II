@@ -139,6 +139,15 @@ Private Sub ResetBushes(ByVal whichBush As String)
     manager.ResetObjects whichBush
 End Sub
 
+Private Function SuspendScreenUpdating() As Boolean
+    SuspendScreenUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+End Function
+
+Private Sub RestoreScreenUpdating(ByVal previousState As Boolean)
+    Application.ScreenUpdating = previousState
+End Sub
+
 Private Sub PositionObj(ByVal objectName As String, ByVal objectLocation As String, Optional ByVal cellValue As Variant)
     Dim manager As ObjectManager
     Set manager = GetObjectManager()
@@ -320,7 +329,8 @@ Private Sub SetupIB()
 End Sub
 
 Private Sub SetupIC()
-    Application.ScreenUpdating = False
+    Dim wasUpdating As Boolean
+    wasUpdating = SuspendScreenUpdating()
     ResetBushes "All"
     PositionObj "Bush1", "EE275", "B"
     PositionObj "Bush2", "EE279", "B"
@@ -331,7 +341,7 @@ Private Sub SetupIC()
     PositionObj "Bush7", "EW291", "B"
     PositionObj "Bush8", "FC291", "B"
     PositionObj "Bush9", "FI291", "B"
-    Application.ScreenUpdating = True
+    RestoreScreenUpdating wasUpdating
 End Sub
 
 Private Sub SetupID()
@@ -352,7 +362,8 @@ Private Sub SetupJC()
 End Sub
 
 Private Sub SetupJD()
-    Application.ScreenUpdating = False
+    Dim wasUpdating As Boolean
+    wasUpdating = SuspendScreenUpdating()
     ResetBushes "All"
     PositionObj "Bush1", "GS311", "B"
     PositionObj "Bush2", "GS315", "B"
@@ -363,7 +374,7 @@ Private Sub SetupJD()
     PositionObj "Bush7", "HQ311", "B"
     PositionObj "Bush8", "HQ315", "B"
     PositionObj "Bush9", "HQ319", "B"
-    Application.ScreenUpdating = True
+    RestoreScreenUpdating wasUpdating
 End Sub
 
 Private Sub SetupKA()
@@ -383,7 +394,8 @@ Private Sub SetupKC()
 End Sub
 
 Private Sub SetupKD()
-    Application.ScreenUpdating = False
+    Dim wasUpdating As Boolean
+    wasUpdating = SuspendScreenUpdating()
     ResetBushes "All"
     PositionObj "Bush1", "GS339", "B"
     PositionObj "Bush2", "GS343", "B"
@@ -415,7 +427,7 @@ Private Sub SetupKD()
     PositionObj "Bush28", "HW347", "B"
     PositionObj "Bush29", "HW351", "B"
     PositionObj "Bush30", "HW355", "B"
-    Application.ScreenUpdating = True
+    RestoreScreenUpdating wasUpdating
 End Sub
 
 Private Sub SetupLA()
@@ -433,7 +445,8 @@ Private Sub SetupLC()
 End Sub
 
 Private Sub SetupLD()
-    Application.ScreenUpdating = False
+    Dim wasUpdating As Boolean
+    wasUpdating = SuspendScreenUpdating()
     ResetBushes "All"
     PositionObj "Bush1", "HE367", "B"
     PositionObj "Bush2", "HK367", "B"
@@ -448,7 +461,7 @@ Private Sub SetupLD()
     PositionObj "Bush11", "HW383", "B"
     PositionObj "Bush12", "HE387", "B"
     PositionObj "Bush13", "HK387", "B"
-    Application.ScreenUpdating = True
+    RestoreScreenUpdating wasUpdating
 End Sub
 
 Private Sub SetupMA()
