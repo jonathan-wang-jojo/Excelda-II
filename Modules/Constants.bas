@@ -7,7 +7,7 @@ Public Const DEFAULT_GAME_SPEED As Long = 16
 Public Const MIN_GAME_SPEED As Long = 8
 Public Const MAX_GAME_SPEED As Long = 200
 Public Const DEFAULT_LINK_SPEED As Double = 24#
-Public Const MINOTAUR_LINK_SPEED As Double = 5#
+Public Const MINOTAUR_LINK_SPEED As Double = 2.5#
 Public Const MIN_LINK_SPEED As Double = 2#
 Public Const MAX_LINK_SPEED As Double = 60#
 Public Const LINK_SPEED_MULTIPLIER As Double = 0.75
@@ -47,7 +47,7 @@ End Enum
 ' Sheet names
 Public Const SHEET_GAME As String = "Game1"
 Public Const SHEET_DATA As String = "Data"
-Public Const SHEET_TITLE As String = "Title"
+Public Const SHEET_TITLE As String = "Maze Title"
 
 ' Key Codes
 Public Const KEY_LEFT As Integer = 37

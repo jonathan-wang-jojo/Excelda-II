@@ -17,6 +17,8 @@ Private Type SpriteData
     PrevTop As Double
     PrevLeft As Double
     AnimTickCounter As Long
+    LightShape As Shape
+    LightShapeName As String
 End Type
 
 Private m_Sprite As SpriteData
@@ -35,6 +37,7 @@ Private Type SpriteFrameDefinition
 End Type
 
 Private Const DEFAULT_IDLE_DIRECTION As Long = SpriteDirDown
+Private Const LIGHT_OVERLAY_NAME As String = "Light"
 
 Private m_PlayerFrameDefs(SpriteDirUp To SpriteDirLeft) As SpriteFrameDefinition
 
@@ -377,6 +380,8 @@ Private Sub ResetState()
     m_Sprite.PrevTop = 0
     m_Sprite.PrevLeft = 0
     m_Sprite.AnimTickCounter = 0
+    Set m_Sprite.LightShape = Nothing
+    m_Sprite.LightShapeName = ""
 End Sub
 
 '===================================================================================
@@ -404,6 +409,8 @@ Public Sub BindLinkSprite(ByVal screenName As String, ByVal spriteName As String
     m_Sprite.PrevTop = m_Sprite.Top
     m_Sprite.PrevLeft = m_Sprite.Left
 
+    BindLightOverlay m_Sprite.LinkSprite.Parent
+
     Dim bindDir As SpriteDirectionIndex
     Dim isIdleFrame As Boolean
     bindDir = IdentifyDirectionFromFrameName(spriteName, isIdleFrame)
@@ -427,6 +434,8 @@ Public Sub BindLinkSprite(ByVal screenName As String, ByVal spriteName As String
     m_Sprite.PendingHideName = ""
     m_Sprite.AnimTickCounter = 0
 
+    UpdateLightOverlay m_Sprite.LinkSprite
+
     Exit Sub
 
 ErrorHandler:
@@ -447,11 +456,14 @@ Public Sub Reset()
         Set wsCurrent = Sheets(gs.CurrentScreen)
         If Not wsCurrent Is Nothing Then
             Set m_Sprite.LinkSprite = ResolveInitialSpriteShape(wsCurrent)
+            BindLightOverlay wsCurrent
         End If
 
         If Not m_Sprite.LinkSprite Is Nothing Then
             m_Sprite.Top = m_Sprite.LinkSprite.Top
             m_Sprite.Left = m_Sprite.LinkSprite.Left
+
+            UpdateLightOverlay m_Sprite.LinkSprite
 
             Dim resetDir As SpriteDirectionIndex
             Dim resetIdle As Boolean
@@ -513,6 +525,7 @@ End Property
 Public Sub ResyncFramePositions()
     On Error Resume Next
     SyncAllLinkFrames
+    UpdateLightOverlay m_Sprite.LinkSprite
     On Error GoTo 0
 End Sub
 
@@ -888,6 +901,8 @@ Public Sub AlignSprites(ByVal leftPos As Double, ByVal topPos As Double)
             frameShape.Top = topPos
         End If
     Next frameName
+
+    UpdateLightOverlay m_Sprite.LinkSprite
     
     On Error GoTo 0
 End Sub
@@ -925,12 +940,137 @@ Private Sub SyncAllLinkFrames()
             frameShape.Left = m_Sprite.Left
         End If
     Next frameName
+    UpdateLightOverlay m_Sprite.LinkSprite
     On Error GoTo 0
 End Sub
 
 Private Function PlayerFrameNames() As Variant
     PlayerFrameNames = AllConfiguredFrameNames()
 End Function
+
+Private Sub BindLightOverlay(ByVal ws As Worksheet)
+    m_Sprite.LightShapeName = LIGHT_OVERLAY_NAME
+    Set m_Sprite.LightShape = Nothing
+    If ws Is Nothing Then Exit Sub
+
+    Dim light As Shape
+    Set light = ResolveLightShape(ws, LIGHT_OVERLAY_NAME)
+    If light Is Nothing Then Exit Sub
+
+    Set m_Sprite.LightShape = light
+    m_Sprite.LightShapeName = light.Name
+    light.Visible = True
+    light.Rotation = 0
+    UpdateLightOverlay m_Sprite.LinkSprite
+End Sub
+
+Private Function EnsureLightOverlay() As Shape
+    Dim light As Shape
+    Set light = m_Sprite.LightShape
+
+    On Error Resume Next
+    If Not light Is Nothing Then
+        Dim dummy As String
+        dummy = light.Name
+        If Err.Number <> 0 Then
+            Err.Clear
+            Set light = Nothing
+        End If
+    End If
+    On Error GoTo 0
+
+    If light Is Nothing Then
+        Dim ws As Worksheet
+        If Not m_Sprite.LinkSprite Is Nothing Then
+            On Error Resume Next
+            Set ws = m_Sprite.LinkSprite.Parent
+            On Error GoTo 0
+        End If
+
+        If ws Is Nothing Then
+            Dim gs As GameState
+            Set gs = GameStateInstance
+            If Not gs Is Nothing Then
+                If gs.CurrentScreen <> "" Then
+                    On Error Resume Next
+                    Set ws = Sheets(gs.CurrentScreen)
+                    On Error GoTo 0
+                End If
+            End If
+        End If
+
+        If Not ws Is Nothing Then
+            Dim targetName As String
+            targetName = m_Sprite.LightShapeName
+            If Trim$(targetName) = "" Then targetName = LIGHT_OVERLAY_NAME
+
+            Set light = ResolveLightShape(ws, targetName)
+            If Not light Is Nothing Then
+                Set m_Sprite.LightShape = light
+                m_Sprite.LightShapeName = light.Name
+            End If
+        End If
+    End If
+
+    Set EnsureLightOverlay = light
+End Function
+
+Private Function ResolveLightShape(ByVal ws As Worksheet, ByVal nameHint As String) As Shape
+    If ws Is Nothing Then Exit Function
+
+    Dim targetName As String
+    targetName = Trim$(nameHint)
+    If targetName = "" Then targetName = LIGHT_OVERLAY_NAME
+
+    Dim light As Shape
+    Set light = ShapeIfExists(ws, targetName)
+    If Not light Is Nothing Then
+        Set ResolveLightShape = light
+        Exit Function
+    End If
+
+    Dim candidate As Shape
+    For Each candidate In ws.Shapes
+        If StrComp(candidate.Name, targetName, vbTextCompare) = 0 Then
+            Set ResolveLightShape = candidate
+            Exit Function
+        End If
+    Next candidate
+End Function
+
+Private Sub UpdateLightOverlay(Optional ByVal referenceShape As Shape)
+    On Error Resume Next
+    Dim spriteShape As Shape
+    If referenceShape Is Nothing Then
+        Set spriteShape = m_Sprite.LinkSprite
+    Else
+        Set spriteShape = referenceShape
+    End If
+    If spriteShape Is Nothing Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+
+    Dim light As Shape
+    Set light = EnsureLightOverlay()
+    If light Is Nothing Then
+        On Error GoTo 0
+        Exit Sub
+    End If
+
+    Dim centerTop As Double
+    Dim centerLeft As Double
+    centerTop = spriteShape.Top + (spriteShape.Height / 2#)
+    centerLeft = spriteShape.Left + (spriteShape.Width / 2#)
+
+    light.Top = centerTop - (light.Height / 2#)
+    light.Left = centerLeft - (light.Width / 2#)
+    light.Visible = True
+    light.Rotation = 0
+    light.ZOrder msoBringToFront
+
+    On Error GoTo 0
+End Sub
 
 Private Function ShapeIfExists(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
     On Error Resume Next

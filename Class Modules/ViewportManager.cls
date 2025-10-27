@@ -6,12 +6,20 @@ Private Const SCREEN_COLUMN_LABEL_ROW As Long = 1
 Private Const SCREEN_COLUMN_OFFSET_ROW As Long = 2
 Private Const DEFAULT_VISIBLE_ROWS As Long = 33
 Private Const DEFAULT_VISIBLE_COLUMNS As Long = 66
-Private Const MINOTAUR_TARGET_ZOOM As Long = 140
+Private Const MINOTAUR_TARGET_ZOOM As Long = 200
+Private Const MINOTAUR_BOUNDS_MIN_COLUMN As Long = 101 ' CW
+Private Const MINOTAUR_BOUNDS_MAX_COLUMN As Long = 287 ' KA
+Private Const MINOTAUR_BOUNDS_MIN_ROW As Long = 17
+Private Const MINOTAUR_BOUNDS_MAX_ROW As Long = 82
+Private Const CAMERA_SMOOTHING_RATE_PER_SECOND As Double = 18#
 
 Private Type ViewportData
     VisibleRows As Long
     VisibleColumns As Long
     LastAnchor As String
+    TargetRowZero As Double
+    TargetColumnZero As Double
+    HasTarget As Boolean
 End Type
 
 Private m_View As ViewportData
@@ -43,6 +51,9 @@ Private Sub ResetState()
     m_View.VisibleRows = DEFAULT_VISIBLE_ROWS
     m_View.VisibleColumns = DEFAULT_VISIBLE_COLUMNS
     m_View.LastAnchor = ""
+    m_View.TargetRowZero = 0#
+    m_View.TargetColumnZero = 0#
+    m_View.HasTarget = False
 End Sub
 
 '===================================================================================
@@ -354,6 +365,9 @@ Public Sub MaintainLinkViewport(Optional ByVal rowMargin As Long = 6, Optional B
     Dim ws As Worksheet
     Set ws = linkCell.Worksheet
 
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+
     Dim win As Window
     On Error Resume Next
     Set win = ActiveWindow
@@ -416,15 +430,56 @@ Public Sub MaintainLinkViewport(Optional ByVal rowMargin As Long = 6, Optional B
         Dim centerColumnZero As Double
         centerRowZero = (linkCell.Row - 1) + (linkShape.Top - linkCell.Top) / rowHeight + (spriteHeightInRows / 2#)
         centerColumnZero = (linkCell.Column - 1) + (linkShape.Left - linkCell.Left) / columnWidth + (spriteWidthInColumns / 2#)
-
         Dim desiredTopZero As Double
         Dim desiredLeftZero As Double
         desiredTopZero = centerRowZero - (visibleRows / 2#)
         desiredLeftZero = centerColumnZero - (visibleColumns / 2#)
 
-        desiredTop = CLng(Int(desiredTopZero) + 1)
-        desiredLeft = CLng(Int(desiredLeftZero) + 1)
+        Const CAMERA_MIN_COLUMN As Long = 101
+        Const CAMERA_MAX_COLUMN As Long = 287
+        Const CAMERA_MIN_ROW As Long = 17
+        Const CAMERA_MAX_ROW As Long = 82
+
+        Dim minTopZero As Double
+        Dim maxTopZero As Double
+        Dim minLeftZero As Double
+        Dim maxLeftZero As Double
+
+    minTopZero = MINOTAUR_BOUNDS_MIN_ROW - 1
+    maxTopZero = MINOTAUR_BOUNDS_MAX_ROW - visibleRows
+        If maxTopZero < minTopZero Then maxTopZero = minTopZero
+
+    minLeftZero = MINOTAUR_BOUNDS_MIN_COLUMN - 1
+    maxLeftZero = MINOTAUR_BOUNDS_MAX_COLUMN - visibleColumns
+        If maxLeftZero < minLeftZero Then maxLeftZero = minLeftZero
+
+        desiredTopZero = ClampDouble(desiredTopZero, minTopZero, maxTopZero)
+        desiredLeftZero = ClampDouble(desiredLeftZero, minLeftZero, maxLeftZero)
+
+        Dim deltaSeconds As Double
+        If Not gs Is Nothing Then
+            deltaSeconds = gs.FrameDeltaSeconds
+        End If
+
+        Dim smoothingFactor As Double
+        smoothingFactor = CameraSmoothingFactor(deltaSeconds)
+
+        If Not m_View.HasTarget Then
+            m_View.TargetRowZero = desiredTopZero
+            m_View.TargetColumnZero = desiredLeftZero
+            m_View.HasTarget = True
+        Else
+            m_View.TargetRowZero = m_View.TargetRowZero + (desiredTopZero - m_View.TargetRowZero) * smoothingFactor
+            m_View.TargetColumnZero = m_View.TargetColumnZero + (desiredLeftZero - m_View.TargetColumnZero) * smoothingFactor
+        End If
+
+        m_View.TargetRowZero = ClampDouble(m_View.TargetRowZero, minTopZero, maxTopZero)
+        m_View.TargetColumnZero = ClampDouble(m_View.TargetColumnZero, minLeftZero, maxLeftZero)
+
+    desiredTop = CLng(Int(m_View.TargetRowZero) + 1)
+    desiredLeft = CLng(Int(m_View.TargetColumnZero) + 1)
     Else
+        m_View.HasTarget = False
         desiredTop = topRow
         desiredLeft = leftColumn
 
@@ -484,25 +539,45 @@ Private Function ClampLong(ByVal value As Long, ByVal minValue As Long, ByVal ma
     ClampLong = value
 End Function
 
+Private Function ClampDouble(ByVal value As Double, ByVal minValue As Double, ByVal maxValue As Double) As Double
+    If maxValue < minValue Then
+        ClampDouble = minValue
+        Exit Function
+    End If
+    If value < minValue Then value = minValue
+    If value > maxValue Then value = maxValue
+    ClampDouble = value
+End Function
+
+Private Function CameraSmoothingFactor(ByVal deltaSeconds As Double) As Double
+    Dim effectiveDelta As Double
+    effectiveDelta = deltaSeconds
+    If effectiveDelta <= 0# Then
+        effectiveDelta = DEFAULT_FRAME_SECONDS
+    End If
+
+    Dim factor As Double
+    factor = 1# - Exp(-CAMERA_SMOOTHING_RATE_PER_SECOND * effectiveDelta)
+    If factor < 0# Then factor = 0#
+    If factor > 1# Then factor = 1#
+
+    CameraSmoothingFactor = factor
+End Function
+
 Private Sub ApplyCameraBoundsForSheet(ByVal ws As Worksheet, ByVal visibleRows As Long, ByVal visibleColumns As Long, ByRef topRow As Long, ByRef leftColumn As Long)
     If ws Is Sheet9 Then
-        Const MIN_COLUMN As Long = 101 ' CW
-        Const MAX_COLUMN As Long = 287 ' KA
-        Const MIN_ROW As Long = 17
-        Const MAX_ROW As Long = 82
-
         Dim allowedMinLeft As Long
         Dim allowedMaxLeft As Long
-        allowedMinLeft = MIN_COLUMN
-        allowedMaxLeft = MAX_COLUMN - visibleColumns + 1
+        allowedMinLeft = MINOTAUR_BOUNDS_MIN_COLUMN
+        allowedMaxLeft = MINOTAUR_BOUNDS_MAX_COLUMN - visibleColumns + 1
         If allowedMaxLeft < allowedMinLeft Then allowedMaxLeft = allowedMinLeft
 
         leftColumn = ClampLong(leftColumn, allowedMinLeft, allowedMaxLeft)
 
         Dim allowedMinTop As Long
         Dim allowedMaxTop As Long
-        allowedMinTop = MIN_ROW
-        allowedMaxTop = MAX_ROW - visibleRows + 1
+        allowedMinTop = MINOTAUR_BOUNDS_MIN_ROW
+        allowedMaxTop = MINOTAUR_BOUNDS_MAX_ROW - visibleRows + 1
         If allowedMaxTop < allowedMinTop Then allowedMaxTop = allowedMinTop
 
         topRow = ClampLong(topRow, allowedMinTop, allowedMaxTop)

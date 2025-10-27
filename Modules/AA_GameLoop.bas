@@ -362,6 +362,7 @@ Private Sub Update(ByVal deltaSeconds As Double)
     If Not m_IsRunning Then Exit Sub
     Call HandleEnemies
     Call UpdateSprites(deltaSeconds)
+    Call UpdateFriendlies(deltaSeconds)
 End Sub
 
 '###################################################################################
@@ -483,6 +484,14 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value = ""
     m_GameState.MoveDir = ""
     m_MoveBlocked = False
+End Sub
+
+Private Sub UpdateFriendlies(ByVal deltaSeconds As Double)
+    Dim manager As FriendlyManager
+    Set manager = FriendlyManagerInstance()
+    If manager Is Nothing Then Exit Sub
+
+    manager.Tick deltaSeconds
 End Sub
 
 Private Function DirectionBlocked(ByVal direction As String, ByVal baseCell As Range) As Boolean
@@ -726,9 +735,27 @@ End Sub
 '###################################################################################
 
 Private Sub HandleEnemies()
-    Dim i As Integer
+    If m_EnemyManager Is Nothing Then Exit Sub
+    If m_SpriteManager Is Nothing Then Exit Sub
+
+    Dim enemyManager As Object
+    Set enemyManager = m_EnemyManager
+
+    Dim linkSprite As Object
+    Set linkSprite = m_SpriteManager.LinkSprite
+
+    Dim i As Long
     For i = 1 To 4
-        m_EnemyManager.ProcessEnemy i, m_SpriteManager.LinkSprite
+        On Error Resume Next
+        enemyManager.ProcessEnemy i, linkSprite
+        Dim hadError As Boolean
+        hadError = (Err.Number <> 0)
+        If hadError Then
+            Debug.Print "HandleEnemies ProcessEnemy error: " & Err.Description
+            Err.Clear
+        End If
+        On Error GoTo 0
+        If hadError Then Exit For
     Next i
 End Sub
 
