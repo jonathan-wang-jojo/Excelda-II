@@ -1,23 +1,16 @@
-'Attribute VB_Name = "SceneGame1"
 Option Explicit
 
-Implements IGameScene
+' Link's Adventure screen setup logic
+' Handles 70+ unique screen layouts (AA-TC)
 
-Private Const SCENE_ID As String = "Game1"
-
-Private Property Get IGameScene_SceneId() As String
-    IGameScene_SceneId = SCENE_ID
+Public Property Get SheetName() As String
+    SheetName = "Game1"
 End Property
 
-Private Property Get IGameScene_SheetName() As String
-    IGameScene_SheetName = SHEET_GAME
-End Property
-
-Private Function IGameScene_CanHandleScreen(ByVal screenCode As String) As Boolean
+Public Function CanHandleScreen(ByVal screenCode As String) As Boolean
     Dim code As String
     code = NormalizeScreenCode(screenCode)
     If code = "" Then Exit Function
-
     If Len(code) <> 2 Then Exit Function
 
     Dim rowCode As String
@@ -25,14 +18,15 @@ Private Function IGameScene_CanHandleScreen(ByVal screenCode As String) As Boole
     rowCode = Mid(code, 1, 1)
     colCode = Mid(code, 2, 1)
 
+    ' Link game uses rows A-V, columns A-D
     If rowCode >= "A" And rowCode <= "V" Then
         If colCode >= "A" And colCode <= "D" Then
-            IGameScene_CanHandleScreen = True
+            CanHandleScreen = True
         End If
     End If
 End Function
 
-Private Sub IGameScene_ApplyScreenLayout(ByVal screenCode As String)
+Public Sub ApplyScreenLayout(ByVal screenCode As String)
     Dim code As String
     code = NormalizeScreenCode(screenCode)
     If code = "" Then Exit Sub
@@ -114,14 +108,6 @@ Private Sub IGameScene_ApplyScreenLayout(ByVal screenCode As String)
         Case Else
             Debug.Print "SceneGame1: Unhandled screen code: " & code
     End Select
-End Sub
-
-Private Sub IGameScene_OnEnterScene()
-    ' No scene-level setup required yet.
-End Sub
-
-Private Sub IGameScene_OnExitScene()
-    ' No scene-level teardown required yet.
 End Sub
 
 Private Function NormalizeScreenCode(ByVal screenCode As String) As String
@@ -548,9 +534,12 @@ Private Sub SetupPB()
 End Sub
 
 Private Sub SetupPC()
+    Dim dataSheet As Worksheet
+    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    
     ResetBushes "All"
     EnemyTrigger "XXXXXXETGD01DEJ503"
-    If Sheets(SHEET_DATA).Range("Z4").Value = "" Then
+    If dataSheet.Range("Z4").Value = "" Then
         ActiveSheet.Range(ActiveSheet.Range("EW507"), ActiveSheet.Range("EW507").Offset(6, 10)).Value = "XXXXXXSE0001XX"
     End If
 End Sub
@@ -564,8 +553,11 @@ Private Sub SetupSA()
 End Sub
 
 Private Sub SetupSB()
+    Dim dataSheet As Worksheet
+    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    
     ResetBushes "All"
-    If Sheets(SHEET_DATA).Range("Z3").Value <> "Y" Then
+    If dataSheet.Range("Z3").Value <> "Y" Then
         ActiveSheet.Range(ActiveSheet.Range("CQ613"), ActiveSheet.Range("CQ613").Offset(1, 7)).Value = "XXXXXXSE0003XX"
     End If
     PositionObj "TarinD", "DG599", "B"
@@ -583,8 +575,11 @@ Private Sub SetupSD()
 End Sub
 
 Private Sub SetupTA()
+    Dim dataSheet As Worksheet
+    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    
     ResetBushes "All"
-    If Sheets(SHEET_DATA).Range("AB2").Value = "" Then
+    If dataSheet.Range("AB2").Value = "" Then
         PositionObj "HeartPiece", "AG639", "XXXXXXSE0002XX"
     End If
 End Sub

@@ -118,7 +118,7 @@ Private Sub HandleEvent0003()
     If spriteMgr Is Nothing Then Exit Sub
 
     Dim linkShape As Shape
-    Set linkShape = spriteMgr.LinkSprite
+    Set linkShape = spriteMgr.PlayerSprite
     If linkShape Is Nothing Then Exit Sub
 
     Dim ws As Worksheet
@@ -135,7 +135,7 @@ Private Sub HandleEvent0003()
     Dim gs As GameState
     Set gs = GameStateInstance()
     If Not gs Is Nothing Then
-        gs.LinkCellAddress = linkShape.TopLeftCell.Address
+        gs.PlayerCellAddress = linkShape.TopLeftCell.Address
         gs.CodeCell = ""
     End If
 
@@ -160,7 +160,7 @@ Private Sub HandleEvent0004()
     If spriteMgr Is Nothing Then Exit Sub
 
     Dim linkSprite As Shape
-    Set linkSprite = spriteMgr.LinkSprite
+    Set linkSprite = spriteMgr.PlayerSprite
     If linkSprite Is Nothing Then Exit Sub
 
     Dim linkWin As Shape
@@ -189,9 +189,9 @@ Private Sub HandleEvent0004()
     ShowDialogue dataSheet.Range("T12").Value
 
     dataSheet.Range("Z3").Value = "Y"
-    dataSheet.Range("C26").Value = "Shield"
+    DataCacheInstance.SetValue RANGE_C_ITEM, "Shield"
 
-    ActionManagerInstance.Reset
+    ActionManagerInstance.SyncItemsFromCache
 
     ws.Range(ws.Range("DC595"), ws.Range("DC595").Offset(11, 9)).Value = ""
     ws.Range(ws.Range("CQ613"), ws.Range("CQ613").Offset(1, 7)).Value = ""
@@ -207,7 +207,7 @@ Private Sub GiveLinkSword(ByVal ws As Worksheet)
     If spriteMgr Is Nothing Then Exit Sub
 
     Dim linkSprite As Shape
-    Set linkSprite = spriteMgr.LinkSprite
+    Set linkSprite = spriteMgr.PlayerSprite
     If linkSprite Is Nothing Then Exit Sub
 
     Dim linkWin As Shape
@@ -244,9 +244,9 @@ Private Sub GiveLinkSword(ByVal ws As Worksheet)
     ws.Range("FG507:FG514").Value = ""
 
     dataSheet.Range("Z4").Value = "Y"
-    dataSheet.Range("C27").Value = "Sword"
+    DataCacheInstance.SetValue RANGE_D_ITEM, "Sword"
 
-    ActionManagerInstance.Reset
+    ActionManagerInstance.SyncItemsFromCache
 End Sub
 
 Private Sub AnimateOwls(ByVal owl1 As Shape, ByVal owl2 As Shape, ByVal steps As Long, ByVal deltaTop As Double, ByVal deltaLeft As Double)
@@ -333,6 +333,6 @@ End Sub
 
 Private Function DataSheet() As Worksheet
     On Error Resume Next
-    Set DataSheet = Sheets(SHEET_DATA)
+    Set DataSheet = GameRegistryInstance().GetGameDataSheet()
     On Error GoTo 0
 End Function

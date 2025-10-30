@@ -1,10 +1,8 @@
 Option Explicit
 
-'===================================================================================
-'                              ENEMY MANAGER CLASS
-'===================================================================================
-' Manages all enemies in the game - up to 4 concurrent enemies
-'===================================================================================
+'###################################################################################
+'                              ENEMY MANAGER
+'###################################################################################
 
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
@@ -12,10 +10,6 @@ Private Const MAX_ENEMY_SLOTS As Long = 4
 
 Private m_Enemies(1 To MAX_ENEMY_SLOTS) As Enemy
 Private m_BouncebackDir(1 To MAX_ENEMY_SLOTS) As String
-
-'===================================================================================
-'                              INITIALIZATION & LIFECYCLE
-'===================================================================================
 
 Private Sub Class_Initialize()
     Initialize
@@ -64,12 +58,7 @@ Private Sub ResetSlots()
     Next slotIndex
 End Sub
 
-'===================================================================================
-'                              CORE PROCESSING
-'===================================================================================
-
 Public Sub ProcessEnemy(ByVal slotIndex As Long, ByVal linkSprite As Object)
-    ' Main enemy update - called every frame for each active enemy
     On Error Resume Next
 
     If slotIndex < 1 Or slotIndex > MAX_ENEMY_SLOTS Then Exit Sub
@@ -98,22 +87,18 @@ Public Sub HandleSwordHit(ByVal swordShape As Shape)
     Dim attackDirection As String
     Dim gs As GameState
     Set gs = GameStateInstance()
-    If Not gs Is Nothing Then
-        attackDirection = Trim$(gs.MoveDir)
-        If attackDirection = "" Then attackDirection = Trim$(gs.LastDir)
-    End If
+    attackDirection = Trim$(gs.MoveDir)
+    If attackDirection = "" Then attackDirection = Trim$(gs.LastDir)
     If attackDirection = "" Then attackDirection = "D"
 
     Dim slotIndex As Long
     For slotIndex = LBound(m_Enemies) To UBound(m_Enemies)
-        If Not m_Enemies(slotIndex) Is Nothing Then
-            If m_Enemies(slotIndex).IsActive Then
-                Dim enemyShape As Shape
-                Set enemyShape = m_Enemies(slotIndex).GetShape()
-                If Not enemyShape Is Nothing Then
-                    If ShapesOverlap(swordShape, enemyShape) Then
-                        HitEnemy slotIndex, attackDirection
-                    End If
+        If m_Enemies(slotIndex).IsActive Then
+            Dim enemyShape As Shape
+            Set enemyShape = m_Enemies(slotIndex).GetShape()
+            If Not enemyShape Is Nothing Then
+                If ShapesOverlap(swordShape, enemyShape) Then
+                    HitEnemy slotIndex, attackDirection
                 End If
             End If
         End If
@@ -122,7 +107,6 @@ Public Sub HandleSwordHit(ByVal swordShape As Shape)
 End Sub
 
 Private Sub UpdateEnemy(ByVal slotIndex As Long)
-    ' Update enemy based on behavior
     On Error Resume Next
 
     Dim enemy As Enemy
@@ -139,10 +123,6 @@ Private Sub UpdateEnemy(ByVal slotIndex As Long)
             ' UpdateChase slotIndex
     End Select
 End Sub
-
-'===================================================================================
-'                              ENEMY BEHAVIOURS
-'===================================================================================
 
 Private Sub UpdateRandomMovement(ByVal slotIndex As Long)
     ' Random movement AI
@@ -233,28 +213,35 @@ Private Sub MoveEnemy(ByVal slotIndex As Long, ByVal moveDirection As String, By
     Set sprite = enemy.GetShape()
     If sprite Is Nothing Then Exit Sub
 
+    Dim newTop As Double
+    Dim newLeft As Double
+    newTop = sprite.Top
+    newLeft = sprite.Left
+
     Select Case moveDirection
         Case "N"
             If Range(cellAddress).Offset(-1, 1).Value = "" Or _
                Range(cellAddress).Offset(-1, 1).Value = "_\|/_" Then
-                sprite.Top = sprite.Top - moveSpeed
+                newTop = newTop - moveSpeed
             End If
         Case "S"
             If Range(cellAddress).Offset(4, 1).Value = "" Or _
                Range(cellAddress).Offset(4, 1).Value = "_\|/_" Then
-                sprite.Top = sprite.Top + moveSpeed
+                newTop = newTop + moveSpeed
             End If
         Case "E"
             If Range(cellAddress).Offset(2, 4).Value = "" Or _
                Range(cellAddress).Offset(2, 4).Value = "_\|/_" Then
-                sprite.Left = sprite.Left + moveSpeed
+                newLeft = newLeft + moveSpeed
             End If
         Case "W"
             If Range(cellAddress).Offset(2, -1).Value = "" Or _
                Range(cellAddress).Offset(2, -1).Value = "_\|/_" Then
-                sprite.Left = sprite.Left - moveSpeed
+                newLeft = newLeft - moveSpeed
             End If
     End Select
+    
+    BatchRendererInstance.QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
 End Sub
 
 '===================================================================================
@@ -288,16 +275,12 @@ Private Sub CheckCollision(ByVal slotIndex As Long, ByVal linkSprite As Object)
     ElseIf sprite.Top < linkSprite.Top And linkSprite.Top <= sprite.Top + sprite.Height Then
         verticalOverlap = True
     End If
-
+    
     If sideOverlap And verticalOverlap Then
-        If Sheets(SHEET_DATA).Range(RANGE_SHIELD_STATE).Value = "Y" Then
+        If DataCacheInstance.GetValue(RANGE_SHIELD_STATE) = "Y" Then
             PushEnemy slotIndex
         Else
-            Dim gs As GameState
-            Set gs = GameStateInstance()
-            If Not gs Is Nothing Then
-                gs.RNDBounceback = CLng(Val(Sheets(SHEET_DATA).Range("C23").Value))
-            End If
+            ' TODO: Implement Link damage/bounceback handling in new engine layer
         End If
     End If
 End Sub
@@ -319,7 +302,6 @@ Private Function ShapesOverlap(ByVal firstShape As Shape, ByVal secondShape As S
 End Function
 
 Public Sub HitEnemy(ByVal slotIndex As Long, ByVal hitDirection As String)
-    ' Apply hit to enemy
     On Error Resume Next
 
     If slotIndex < 1 Or slotIndex > MAX_ENEMY_SLOTS Then Exit Sub
@@ -335,7 +317,6 @@ Public Sub HitEnemy(ByVal slotIndex As Long, ByVal hitDirection As String)
 End Sub
 
 Private Sub ApplyBounceBack(ByVal slotIndex As Long)
-    ' Bounce enemy back when hit
     On Error Resume Next
 
     Dim enemy As Enemy
@@ -347,17 +328,24 @@ Private Sub ApplyBounceBack(ByVal slotIndex As Long)
 
     Dim bounceDirection As String
     bounceDirection = m_BouncebackDir(slotIndex)
+    
+    Dim newTop As Double
+    Dim newLeft As Double
+    newTop = sprite.Top
+    newLeft = sprite.Left
 
     Select Case bounceDirection
         Case "U", "LU", "RU"
-            sprite.Top = sprite.Top - 15
+            newTop = newTop - 15
         Case "D", "LD", "RD"
-            sprite.Top = sprite.Top + 15
+            newTop = newTop + 15
         Case "L"
-            sprite.Left = sprite.Left - 15
+            newLeft = newLeft - 15
         Case "R"
-            sprite.Left = sprite.Left + 15
+            newLeft = newLeft + 15
     End Select
+    
+    BatchRendererInstance.QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
 End Sub
 
 Private Sub PushEnemy(ByVal slotIndex As Long)
@@ -371,19 +359,29 @@ Private Sub PushEnemy(ByVal slotIndex As Long)
     Set sprite = enemy.GetShape()
     If sprite Is Nothing Then Exit Sub
 
+    Dim dataSheet As Worksheet
+    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    
     Dim pushDirection As String
-    pushDirection = Sheets(SHEET_DATA).Range(RANGE_MOVE_DIR).Value
+    pushDirection = DataCacheInstance.GetValue(RANGE_MOVE_DIR)
+    
+    Dim newTop As Double
+    Dim newLeft As Double
+    newTop = sprite.Top
+    newLeft = sprite.Left
 
     Select Case pushDirection
         Case "U", "LU", "RU"
-            sprite.Top = sprite.Top - 5
+            newTop = newTop - 5
         Case "D", "LD", "RD"
-            sprite.Top = sprite.Top + 5
+            newTop = newTop + 5
         Case "L"
-            sprite.Left = sprite.Left - 5
+            newLeft = newLeft - 5
         Case "R"
-            sprite.Left = sprite.Left + 5
+            newLeft = newLeft + 5
     End Select
+    
+    BatchRendererInstance.QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
 End Sub
 
 Private Sub KillEnemy(ByVal slotIndex As Long)
@@ -397,16 +395,18 @@ Private Sub KillEnemy(ByVal slotIndex As Long)
     Set shp = enemy.GetShape()
     If shp Is Nothing Then Exit Sub
     
-    ' Show explosion animation
+    Dim explosionTop As Double
+    Dim explosionLeft As Double
+    explosionTop = shp.Top
+    explosionLeft = shp.Left
+    
+    ' Show explosion animation (batch queue)
     With ActiveSheet
-        .Shapes("Explosion1").Top = shp.Top
-        .Shapes("Explosion1").Left = shp.Left
-        .Shapes("Explosion2").Top = shp.Top
-        .Shapes("Explosion2").Left = shp.Left
-        .Shapes("Explosion3").Top = shp.Top - 5
-        .Shapes("Explosion3").Left = shp.Left - 5
+        BatchRendererInstance.QueuePosition ActiveSheet, "Explosion1", explosionTop, explosionLeft
+        BatchRendererInstance.QueuePosition ActiveSheet, "Explosion2", explosionTop, explosionLeft
+        BatchRendererInstance.QueuePosition ActiveSheet, "Explosion3", explosionTop - 5, explosionLeft - 5
         
-        .Shapes("Explosion1").Visible = True
+        BatchRendererInstance.QueueVisibility ActiveSheet, "Explosion1", True
         Range("A1").Copy Range("A2")
         Sleep 8
         
@@ -454,7 +454,9 @@ Public Function SpawnEnemy(ByVal enemyTypeName As String, ByVal slotIndex As Lon
     enemy.Show cellAddress
     
     ' Mark as active in Data sheet
-    Sheets(SHEET_DATA).Range("C" & dataRow).Value = "Y"
+    Dim dataSheet As Worksheet
+    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    dataSheet.Range("C" & dataRow).Value = "Y"
     
     SpawnEnemy = True
 End Function
@@ -470,7 +472,9 @@ Public Sub DespawnEnemy(ByVal slotIndex As Long, ByVal dataRow As Long)
     
     ' Mark as inactive in Data sheet
     If dataRow > 0 Then
-        Sheets(SHEET_DATA).Range("C" & dataRow).Value = "N"
+        Dim dataSheet As Worksheet
+        Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+        dataSheet.Range("C" & dataRow).Value = "N"
     End If
 End Sub
 

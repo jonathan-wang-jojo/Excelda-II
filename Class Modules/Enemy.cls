@@ -97,7 +97,7 @@ Public Sub LoadFromData(enemyTypeName As String, slotNum As Long, dataRow As Lon
     CurrentFrame = Frame1
     
     ' Load from actual Excel columns (based on provided structure)
-    With Sheets(SHEET_DATA)
+    With GameRegistryInstance().GetGameDataSheet()
         ' Column B: Name (display only)
         ' Column C: Visible? (Y/N)
         Life = Val(.Cells(dataRow, 4).Value)              ' Col D: Life

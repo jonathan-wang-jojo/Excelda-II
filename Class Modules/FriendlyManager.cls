@@ -78,7 +78,10 @@ Public Sub SpawnFriendly(ByVal slotIndex As Long, ByVal baseName As String, ByVa
 
     RegisterFriendly slotIndex, baseName, dataRow, normalizedDir, screenName
     AlignFriendlyShapes baseName, anchorCell, normalizedDir
-    Sheets(SHEET_DATA).Range("C" & dataRow).Value = "Y"
+    
+    Dim dataSheet As Worksheet
+    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    dataSheet.Range("C" & dataRow).Value = "Y"
     ForceFriendlyRefresh
 End Sub
 
@@ -95,7 +98,9 @@ Public Sub DespawnFriendly(ByVal slotIndex As Long, ByVal dataRow As Long)
     End If
 
     If dataRow > 0 Then
-        Sheets(SHEET_DATA).Range("C" & dataRow).Value = "N"
+        Dim dataSheet As Worksheet
+        Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+        dataSheet.Range("C" & dataRow).Value = "N"
     End If
 
     ClearFriendly slotIndex

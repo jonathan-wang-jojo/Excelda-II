@@ -19,6 +19,10 @@ Private m_ObjectManager As ObjectManager
 Private m_SpecialEventManager As SpecialEventManager
 Private m_SceneManager As SceneManager
 Private m_ViewportManager As ViewportManager
+Private m_GameRegistry As GameRegistry
+Private m_DataCache As DataCache
+Private m_BatchRenderer As BatchRenderer
+Private m_EntityManager As EntityManager
 
 '------------------------------- GameState -------------------------------
 Public Function GameStateInstance() As GameState
@@ -101,6 +105,39 @@ Public Function ViewportManagerInstance() As ViewportManager
     Set ViewportManagerInstance = m_ViewportManager
 End Function
 
+'------------------------------- GameRegistry -------------------------------
+Public Function GameRegistryInstance() As GameRegistry
+    If m_GameRegistry Is Nothing Then
+        Set m_GameRegistry = New GameRegistry
+    End If
+    Set GameRegistryInstance = m_GameRegistry
+End Function
+
+'------------------------------- DataCache -------------------------------
+Public Function DataCacheInstance() As DataCache
+    If m_DataCache Is Nothing Then
+        Set m_DataCache = New DataCache
+        ' Note: Must call DataCacheInstance.Initialize() explicitly after creation
+    End If
+    Set DataCacheInstance = m_DataCache
+End Function
+
+'------------------------------- BatchRenderer -------------------------------
+Public Function BatchRendererInstance() As BatchRenderer
+    If m_BatchRenderer Is Nothing Then
+        Set m_BatchRenderer = New BatchRenderer
+    End If
+    Set BatchRendererInstance = m_BatchRenderer
+End Function
+
+'------------------------------- EntityManager -------------------------------
+Public Function EntityManagerInstance() As EntityManager
+    If m_EntityManager Is Nothing Then
+        Set m_EntityManager = New EntityManager
+    End If
+    Set EntityManagerInstance = m_EntityManager
+End Function
+
 '------------------------------- Manager Lifecycle -------------------------------
 Public Sub ResetAllManagers()
     If Not m_GameState Is Nothing Then m_GameState.Reset
@@ -121,6 +158,15 @@ Public Sub ResetAllManagers()
     If Not m_ViewportManager Is Nothing Then
         m_ViewportManager.Reset
     End If
+    If Not m_DataCache Is Nothing Then
+        m_DataCache.Reset
+    End If
+    If Not m_BatchRenderer Is Nothing Then
+        m_BatchRenderer.Clear
+    End If
+    If Not m_EntityManager Is Nothing Then
+        m_EntityManager.Clear
+    End If
 End Sub
 
 Public Sub DestroyAllManagers()
@@ -133,5 +179,9 @@ Public Sub DestroyAllManagers()
     If Not m_SpecialEventManager Is Nothing Then m_SpecialEventManager.Destroy: Set m_SpecialEventManager = Nothing
     If Not m_SceneManager Is Nothing Then m_SceneManager.Destroy: Set m_SceneManager = Nothing
     If Not m_ViewportManager Is Nothing Then m_ViewportManager.Destroy: Set m_ViewportManager = Nothing
+    Set m_GameRegistry = Nothing  ' GameRegistry doesn't need explicit destroy
+    If Not m_DataCache Is Nothing Then m_DataCache.Reset: Set m_DataCache = Nothing
+    If Not m_BatchRenderer Is Nothing Then m_BatchRenderer.Clear: Set m_BatchRenderer = Nothing
+    If Not m_EntityManager Is Nothing Then m_EntityManager.Clear: Set m_EntityManager = Nothing
 End Sub
 '===================================================================================

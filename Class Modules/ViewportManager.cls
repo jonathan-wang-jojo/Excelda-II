@@ -1,25 +1,51 @@
 Option Explicit
 
-Private Const SCREEN_ROW_LABEL_COLUMN As Long = 7
-Private Const SCREEN_ROW_OFFSET_COLUMN As Long = 8
-Private Const SCREEN_COLUMN_LABEL_ROW As Long = 1
-Private Const SCREEN_COLUMN_OFFSET_ROW As Long = 2
+'═══════════════════════════════════════════════════════════════════════════════
+' VIEWPORT MANAGER - Camera & Scrolling System
+'═══════════════════════════════════════════════════════════════════════════════
+' Handles viewport positioning, camera following, and screen navigation.
+' Uses instant camera snap for jitter-free scrolling (sprite interpolation
+' provides visual smoothness via game loop alpha).
+'═══════════════════════════════════════════════════════════════════════════════
+
+'──────────────────────────────────────────────────────────────────────────────
+' Screen Grid Configuration
+'──────────────────────────────────────────────────────────────────────────────
+Private Const SCREEN_ROW_LABEL_COLUMN As Long = 7      ' Column containing row labels (A, B, C...)
+Private Const SCREEN_ROW_OFFSET_COLUMN As Long = 8     ' Column containing row offsets
+Private Const SCREEN_COLUMN_LABEL_ROW As Long = 1      ' Row containing column labels (1, 2, 3...)
+Private Const SCREEN_COLUMN_OFFSET_ROW As Long = 2     ' Row containing column offsets
+
+'──────────────────────────────────────────────────────────────────────────────
+' Viewport Defaults
+'──────────────────────────────────────────────────────────────────────────────
 Private Const DEFAULT_VISIBLE_ROWS As Long = 33
 Private Const DEFAULT_VISIBLE_COLUMNS As Long = 66
-Private Const MINOTAUR_TARGET_ZOOM As Long = 200
-Private Const MINOTAUR_BOUNDS_MIN_COLUMN As Long = 101 ' CW
-Private Const MINOTAUR_BOUNDS_MAX_COLUMN As Long = 287 ' KA
-Private Const MINOTAUR_BOUNDS_MIN_ROW As Long = 17
-Private Const MINOTAUR_BOUNDS_MAX_ROW As Long = 82
-Private Const CAMERA_SMOOTHING_RATE_PER_SECOND As Double = 18#
+Private Const DEFAULT_ROW_MARGIN As Long = 6            ' Margin-based camera mode
+Private Const DEFAULT_COLUMN_MARGIN As Long = 10
 
+'──────────────────────────────────────────────────────────────────────────────
+' Camera Modes
+'──────────────────────────────────────────────────────────────────────────────
+Private Enum CameraMode
+    CameraInstant = 0       ' Center on player instantly (default, Unity-style)
+    CameraMargins = 1       ' Only scroll when player near edges (platformer-style)
+    CameraGrid = 2          ' Snap to grid quadrants (Zelda-style)
+End Enum
+
+'──────────────────────────────────────────────────────────────────────────────
+' Viewport State
+'──────────────────────────────────────────────────────────────────────────────
 Private Type ViewportData
     VisibleRows As Long
     VisibleColumns As Long
     LastAnchor As String
-    TargetRowZero As Double
-    TargetColumnZero As Double
-    HasTarget As Boolean
+    Mode As CameraMode
+    ' Configurable bounds (0 = no restriction)
+    BoundsMinRow As Long
+    BoundsMaxRow As Long
+    BoundsMinColumn As Long
+    BoundsMaxColumn As Long
 End Type
 
 Private m_View As ViewportData
@@ -51,28 +77,53 @@ Private Sub ResetState()
     m_View.VisibleRows = DEFAULT_VISIBLE_ROWS
     m_View.VisibleColumns = DEFAULT_VISIBLE_COLUMNS
     m_View.LastAnchor = ""
-    m_View.TargetRowZero = 0#
-    m_View.TargetColumnZero = 0#
-    m_View.HasTarget = False
+    m_View.Mode = CameraInstant
+    m_View.BoundsMinRow = 0
+    m_View.BoundsMaxRow = 0
+    m_View.BoundsMinColumn = 0
+    m_View.BoundsMaxColumn = 0
 End Sub
 
 '===================================================================================
-'                              PUBLIC API
+'                              PUBLIC API - Configuration
 '===================================================================================
-Public Sub AlignToLink()
+Public Sub SetCameraMode(ByVal mode As Long)
+    If mode < 0 Or mode > 2 Then Exit Sub
+    m_View.Mode = mode
+End Sub
+
+Public Sub SetCameraBounds(ByVal minRow As Long, ByVal maxRow As Long, _
+                          ByVal minColumn As Long, ByVal maxColumn As Long)
+    m_View.BoundsMinRow = minRow
+    m_View.BoundsMaxRow = maxRow
+    m_View.BoundsMinColumn = minColumn
+    m_View.BoundsMaxColumn = maxColumn
+End Sub
+
+Public Sub ClearCameraBounds()
+    m_View.BoundsMinRow = 0
+    m_View.BoundsMaxRow = 0
+    m_View.BoundsMinColumn = 0
+    m_View.BoundsMaxColumn = 0
+End Sub
+
+'===================================================================================
+'                              PUBLIC API - Navigation
+'===================================================================================
+Public Sub AlignToPlayer()
     Dim spriteManager As SpriteManager
     Set spriteManager = SpriteManagerInstance()
     If spriteManager Is Nothing Then Exit Sub
 
-    Dim linkSprite As Shape
-    Set linkSprite = spriteManager.LinkSprite
-    If linkSprite Is Nothing Then Exit Sub
+    Dim playerSprite As Shape
+    Set playerSprite = spriteManager.PlayerSprite
+    If playerSprite Is Nothing Then Exit Sub
 
-    Dim linkCell As Range
-    Set linkCell = linkSprite.TopLeftCell
-    If linkCell Is Nothing Then Exit Sub
+    Dim playerCell As Range
+    Set playerCell = playerSprite.TopLeftCell
+    If playerCell Is Nothing Then Exit Sub
 
-    ApplyViewportForCell linkCell
+    ApplyViewportForCell playerCell
 End Sub
 
 Public Sub FocusOnScreen(ByVal screenCode As String)
@@ -332,7 +383,11 @@ Private Sub ScrollToAnchor(ByVal anchorCell As Range)
     targetTop = ClampLong(anchorCell.Row, 1, sheetMaxTop)
     targetLeft = ClampLong(anchorCell.Column, 1, sheetMaxLeft)
 
-    ApplyCameraBoundsForSheet anchorCell.Worksheet, visibleRows, visibleColumns, targetTop, targetLeft
+    ' Apply configured bounds if set
+    If m_View.BoundsMinRow > 0 Or m_View.BoundsMaxRow > 0 Or _
+       m_View.BoundsMinColumn > 0 Or m_View.BoundsMaxColumn > 0 Then
+        ApplyConfiguredBounds visibleRows, visibleColumns, targetTop, targetLeft
+    End If
 
     targetTop = ClampLong(targetTop, 1, sheetMaxTop)
     targetLeft = ClampLong(targetLeft, 1, sheetMaxLeft)
@@ -349,185 +404,320 @@ Private Sub ScrollToAnchor(ByVal anchorCell As Range)
     If previousUpdating Then Application.ScreenUpdating = True
 End Sub
 
-Public Sub MaintainLinkViewport(Optional ByVal rowMargin As Long = 6, Optional ByVal columnMargin As Long = 10)
+'===================================================================================
+'                              PUBLIC API - Scrolling
+'===================================================================================
+Public Sub HandleScrollTransition(ByVal scrollCode As String)
+    On Error GoTo ErrorHandler
+
+    Dim normalizedCode As String
+    normalizedCode = Trim$(scrollCode)
+    If normalizedCode = "" Then Exit Sub
+
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+
+    Dim primaryDir As String
+    primaryDir = ResolveScrollDirection(normalizedCode, gs.MoveDir, gs.LastDir)
+    If primaryDir = "" Then Exit Sub
+
+    If ShouldPreventRescroll(gs.PlayerCellAddress, primaryDir) Then Exit Sub
+
+    PerformWindowScroll normalizedCode, primaryDir
+
+    DataCacheInstance.SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
+    DataCacheInstance.SetValue RANGE_PREVIOUS_SCROLL, primaryDir
+    DataCacheInstance.SetValue RANGE_SCROLL_DIRECTION, primaryDir
+
+    UpdateScreenLocation normalizedCode, primaryDir
+
+    Dim setupMacro As String
+    setupMacro = gs.CurrentScreenCode
+    If setupMacro = "" Then setupMacro = gs.CurrentScreen
+    If setupMacro <> "" Then
+        On Error GoTo ScreenSetupError
+        SceneManagerInstance().ApplyScreen setupMacro
+        DataCacheInstance.Flush GameRegistryInstance().GetGameDataSheet()
+        On Error GoTo ErrorHandler
+    End If
+
+    Exit Sub
+
+ScreenSetupError:
+    MsgBox "Screen setup macro not found: " & setupMacro, vbCritical, "Screen Setup Error"
+    On Error GoTo ErrorHandler
+    Exit Sub
+
+ErrorHandler:
+    If Err.Number <> 0 Then
+        MsgBox "Scroll Error: " & Err.Description, vbCritical, "Scroll Error"
+    End If
+End Sub
+
+Public Sub UpdateScreenLocation(ByVal scrollDir As String, ByVal direction As String)
+    On Error GoTo ErrorHandler
+
+    Dim gs As GameState
+    Set gs = GameStateInstance()
+    If gs Is Nothing Then Exit Sub
+
+    If gs.CurrentScreen = "" Or gs.PlayerCellAddress = "" Then Exit Sub
+
+    Dim mapSheet As Worksheet
+    Set mapSheet = Sheets(gs.CurrentScreen)
+
+    Dim baseCell As Range
+    Set baseCell = mapSheet.Range(gs.PlayerCellAddress)
+
+    Dim baseRow As Long
+    Dim baseColumn As Long
+    baseRow = baseCell.Row
+    baseColumn = baseCell.Column
+
+    Dim scrollCode As String
+    scrollCode = Trim$(scrollDir)
+
+    Dim orientation As String
+    orientation = ScrollOrientation(scrollCode)
+
+    Dim primaryDir As String
+    primaryDir = ExtractDirectionalComponent(direction, orientation)
+    If primaryDir = "" Then
+        primaryDir = ScrollCodeToDirectionLetter(scrollCode)
+        If primaryDir = "" Then
+            primaryDir = ExtractDirectionalComponent(gs.lastDir, orientation)
+        End If
+    End If
+
+    Dim targetRow As Long
+    Dim targetColumn As Long
+    targetRow = baseRow
+    targetColumn = baseColumn
+
+    Select Case scrollCode
+        Case SCROLL_CODE_VERTICAL
+            Select Case primaryDir
+                Case "D"
+                    targetRow = baseRow + 5
+                Case Else
+                    targetRow = baseRow
+            End Select
+            targetColumn = baseColumn
+        Case SCROLL_CODE_HORIZONTAL
+            Select Case primaryDir
+                Case "R"
+                    targetColumn = baseColumn + 2
+                Case "L"
+                    targetColumn = baseColumn - 2
+                Case Else
+                    targetColumn = baseColumn
+            End Select
+            targetRow = baseRow
+        Case SCROLL_CODE_DIRECT_DOWN
+            targetColumn = baseColumn
+            targetRow = baseRow + 5
+        Case SCROLL_CODE_DIRECT_UP
+            targetColumn = baseColumn
+            targetRow = baseRow
+        Case ""
+            targetColumn = baseColumn
+            targetRow = baseRow
+        Case Else
+            Select Case primaryDir
+                Case "D"
+                    targetColumn = baseColumn
+                    targetRow = baseRow + 5
+                Case "U"
+                    targetColumn = baseColumn
+                    targetRow = baseRow
+                Case "L"
+                    targetRow = baseRow
+                    targetColumn = baseColumn - 2
+                Case "R"
+                    targetRow = baseRow
+                    targetColumn = baseColumn + 2
+                Case Else
+                    targetColumn = baseColumn
+                    targetRow = baseRow
+            End Select
+    End Select
+
+    If targetColumn < 1 Then targetColumn = 1
+    If targetRow < 1 Then targetRow = 1
+    If targetColumn > mapSheet.Columns.Count Then targetColumn = mapSheet.Columns.Count
+    If targetRow > mapSheet.Rows.Count Then targetRow = mapSheet.Rows.Count
+
+    Dim rowLabel As String
+    Dim columnLabel As String
+    rowLabel = Trim$(CStr(mapSheet.Cells(targetRow, 7).Value))
+    columnLabel = Trim$(CStr(mapSheet.Cells(1, targetColumn).Value))
+
+    Dim screenCode As String
+    screenCode = UCase$(Trim$(rowLabel & columnLabel))
+
+    gs.CurrentScreenCode = screenCode
+
+    DataCacheInstance.SetValue RANGE_SCREEN_ROW, rowLabel
+    DataCacheInstance.SetValue RANGE_SCREEN_COLUMN, columnLabel
+
+    FocusOnScreen screenCode
+
+    Exit Sub
+
+ErrorHandler:
+    MsgBox "Error in UpdateScreenLocation: " & Err.Description, vbCritical, "Screen Location Error"
+End Sub
+
+'===================================================================================
+'                              PUBLIC API - Camera Following
+'===================================================================================
+''' <summary>
+''' Maintains viewport centered on player. Call every frame from game loop.
+''' Uses instant snap for jitter-free scrolling (sprite interpolation provides smoothness).
+''' </summary>
+Public Sub MaintainPlayerViewport(Optional ByVal rowMargin As Long = -1, Optional ByVal columnMargin As Long = -1)
+    ' Get player sprite
     Dim spriteManager As SpriteManager
     Set spriteManager = SpriteManagerInstance()
     If spriteManager Is Nothing Then Exit Sub
 
-    Dim linkShape As Shape
-    Set linkShape = spriteManager.LinkSprite
-    If linkShape Is Nothing Then Exit Sub
+    Dim playerSprite As Shape
+    Set playerSprite = spriteManager.PlayerSprite
+    If playerSprite Is Nothing Then Exit Sub
 
-    Dim linkCell As Range
-    Set linkCell = linkShape.TopLeftCell
-    If linkCell Is Nothing Then Exit Sub
+    Dim playerCell As Range
+    Set playerCell = playerSprite.TopLeftCell
+    If playerCell Is Nothing Then Exit Sub
 
     Dim ws As Worksheet
-    Set ws = linkCell.Worksheet
+    Set ws = playerCell.Worksheet
 
-    Dim gs As GameState
-    Set gs = GameStateInstance()
-
+    ' Ensure worksheet is active
     Dim win As Window
+    If Not ws Is ActiveSheet Then ws.Activate
+    
     On Error Resume Next
     Set win = ActiveWindow
     On Error GoTo 0
     If win Is Nothing Then Exit Sub
 
-    If Not ws Is ActiveSheet Then
-        ws.Activate
-        On Error Resume Next
-        Set win = ActiveWindow
-        On Error GoTo 0
-        If win Is Nothing Then Exit Sub
-    End If
-
-    If ws Is Sheet9 Then
-        EnsureWindowZoom win, MINOTAUR_TARGET_ZOOM
-    End If
-
+    ' Get current viewport state
     Dim visible As Range
     On Error Resume Next
     Set visible = win.VisibleRange
     On Error GoTo 0
     If visible Is Nothing Then Exit Sub
 
-    Dim topRow As Long
-    Dim leftColumn As Long
-    Dim visibleRows As Long
-    Dim visibleColumns As Long
-    topRow = win.ScrollRow
-    leftColumn = win.ScrollColumn
+    Dim visibleRows As Long, visibleColumns As Long
     visibleRows = visible.Rows.Count
     visibleColumns = visible.Columns.Count
     If visibleRows <= 0 Then visibleRows = DEFAULT_VISIBLE_ROWS
     If visibleColumns <= 0 Then visibleColumns = DEFAULT_VISIBLE_COLUMNS
 
-    Dim bottomRow As Long
-    Dim rightColumn As Long
-    bottomRow = topRow + visibleRows - 1
-    rightColumn = leftColumn + visibleColumns - 1
+    ' Calculate desired camera position based on mode
+    Dim desiredTop As Long, desiredLeft As Long
+    
+    Select Case m_View.Mode
+        Case CameraInstant
+            ' Center camera on player instantly (default, Unity-style)
+            desiredTop = playerCell.Row - (visibleRows \ 2)
+            desiredLeft = playerCell.Column - (visibleColumns \ 2)
+            
+        Case CameraMargins
+            ' Only scroll when player approaches viewport edges (platformer-style)
+            Dim rMargin As Long, cMargin As Long
+            rMargin = IIf(rowMargin < 0, DEFAULT_ROW_MARGIN, rowMargin)
+            cMargin = IIf(columnMargin < 0, DEFAULT_COLUMN_MARGIN, columnMargin)
+            
+            Dim topRow As Long, leftColumn As Long
+            topRow = win.ScrollRow
+            leftColumn = win.ScrollColumn
+            
+            desiredTop = topRow
+            desiredLeft = leftColumn
+            
+            ' Adjust if player near edges
+            If playerCell.Row < topRow + rMargin Then
+                desiredTop = playerCell.Row - rMargin
+            ElseIf playerCell.Row > topRow + visibleRows - rMargin - 1 Then
+                desiredTop = playerCell.Row + rMargin - visibleRows + 1
+            End If
+            
+            If playerCell.Column < leftColumn + cMargin Then
+                desiredLeft = playerCell.Column - cMargin
+            ElseIf playerCell.Column > leftColumn + visibleColumns - cMargin - 1 Then
+                desiredLeft = playerCell.Column + cMargin - visibleColumns + 1
+            End If
+            
+        Case CameraGrid
+            ' Snap to grid quadrants (Zelda-style) - uses screen code system
+            ' For now, just center on player (grid logic requires screen metadata)
+            desiredTop = playerCell.Row - (visibleRows \ 2)
+            desiredLeft = playerCell.Column - (visibleColumns \ 2)
+    End Select
 
-    Dim desiredTop As Long
-    Dim desiredLeft As Long
-
-    If ws Is Sheet9 Then
-        Dim rowHeight As Double
-        Dim columnWidth As Double
-        rowHeight = linkCell.Height
-        columnWidth = linkCell.Width
-        If rowHeight <= 0# Then rowHeight = 1#
-        If columnWidth <= 0# Then columnWidth = 1#
-
-        Dim spriteHeightInRows As Double
-        Dim spriteWidthInColumns As Double
-        spriteHeightInRows = linkShape.Height / rowHeight
-        spriteWidthInColumns = linkShape.Width / columnWidth
-        If spriteHeightInRows <= 0# Then spriteHeightInRows = 1#
-        If spriteWidthInColumns <= 0# Then spriteWidthInColumns = 1#
-
-        Dim centerRowZero As Double
-        Dim centerColumnZero As Double
-        centerRowZero = (linkCell.Row - 1) + (linkShape.Top - linkCell.Top) / rowHeight + (spriteHeightInRows / 2#)
-        centerColumnZero = (linkCell.Column - 1) + (linkShape.Left - linkCell.Left) / columnWidth + (spriteWidthInColumns / 2#)
-        Dim desiredTopZero As Double
-        Dim desiredLeftZero As Double
-        desiredTopZero = centerRowZero - (visibleRows / 2#)
-        desiredLeftZero = centerColumnZero - (visibleColumns / 2#)
-
-        Const CAMERA_MIN_COLUMN As Long = 101
-        Const CAMERA_MAX_COLUMN As Long = 287
-        Const CAMERA_MIN_ROW As Long = 17
-        Const CAMERA_MAX_ROW As Long = 82
-
-        Dim minTopZero As Double
-        Dim maxTopZero As Double
-        Dim minLeftZero As Double
-        Dim maxLeftZero As Double
-
-    minTopZero = MINOTAUR_BOUNDS_MIN_ROW - 1
-    maxTopZero = MINOTAUR_BOUNDS_MAX_ROW - visibleRows
-        If maxTopZero < minTopZero Then maxTopZero = minTopZero
-
-    minLeftZero = MINOTAUR_BOUNDS_MIN_COLUMN - 1
-    maxLeftZero = MINOTAUR_BOUNDS_MAX_COLUMN - visibleColumns
-        If maxLeftZero < minLeftZero Then maxLeftZero = minLeftZero
-
-        desiredTopZero = ClampDouble(desiredTopZero, minTopZero, maxTopZero)
-        desiredLeftZero = ClampDouble(desiredLeftZero, minLeftZero, maxLeftZero)
-
-        Dim deltaSeconds As Double
-        If Not gs Is Nothing Then
-            deltaSeconds = gs.FrameDeltaSeconds
-        End If
-
-        Dim smoothingFactor As Double
-        smoothingFactor = CameraSmoothingFactor(deltaSeconds)
-
-        If Not m_View.HasTarget Then
-            m_View.TargetRowZero = desiredTopZero
-            m_View.TargetColumnZero = desiredLeftZero
-            m_View.HasTarget = True
-        Else
-            m_View.TargetRowZero = m_View.TargetRowZero + (desiredTopZero - m_View.TargetRowZero) * smoothingFactor
-            m_View.TargetColumnZero = m_View.TargetColumnZero + (desiredLeftZero - m_View.TargetColumnZero) * smoothingFactor
-        End If
-
-        m_View.TargetRowZero = ClampDouble(m_View.TargetRowZero, minTopZero, maxTopZero)
-        m_View.TargetColumnZero = ClampDouble(m_View.TargetColumnZero, minLeftZero, maxLeftZero)
-
-    desiredTop = CLng(Int(m_View.TargetRowZero) + 1)
-    desiredLeft = CLng(Int(m_View.TargetColumnZero) + 1)
-    Else
-        m_View.HasTarget = False
-        desiredTop = topRow
-        desiredLeft = leftColumn
-
-        If linkCell.Row < topRow + rowMargin Then
-            desiredTop = linkCell.Row - rowMargin
-        ElseIf linkCell.Row > bottomRow - rowMargin Then
-            desiredTop = linkCell.Row + rowMargin - visibleRows + 1
-        End If
-
-        If linkCell.Column < leftColumn + columnMargin Then
-            desiredLeft = linkCell.Column - columnMargin
-        ElseIf linkCell.Column > rightColumn - columnMargin Then
-            desiredLeft = linkCell.Column + columnMargin - visibleColumns + 1
-        End If
+    ' Apply configured bounds if set
+    If m_View.BoundsMinRow > 0 Or m_View.BoundsMaxRow > 0 Or _
+       m_View.BoundsMinColumn > 0 Or m_View.BoundsMaxColumn > 0 Then
+        ApplyConfiguredBounds visibleRows, visibleColumns, desiredTop, desiredLeft
     End If
 
-    Dim maxTop As Long
-    Dim maxLeft As Long
+    ' Clamp to sheet bounds
+    Dim maxTop As Long, maxLeft As Long
     maxTop = ws.Rows.Count - visibleRows + 1
     maxLeft = ws.Columns.Count - visibleColumns + 1
     If maxTop < 1 Then maxTop = 1
     If maxLeft < 1 Then maxLeft = 1
-
+    
     desiredTop = ClampLong(desiredTop, 1, maxTop)
     desiredLeft = ClampLong(desiredLeft, 1, maxLeft)
 
-    ApplyCameraBoundsForSheet ws, visibleRows, visibleColumns, desiredTop, desiredLeft
-
-    desiredTop = ClampLong(desiredTop, 1, maxTop)
-    desiredLeft = ClampLong(desiredLeft, 1, maxLeft)
-
-    If desiredTop <> topRow Or desiredLeft <> leftColumn Then
-        Dim previousUpdating As Boolean
-        previousUpdating = Application.ScreenUpdating
-        If previousUpdating Then Application.ScreenUpdating = False
+    ' Apply scroll if changed (instant snap, no smoothing)
+    If desiredTop <> win.ScrollRow Or desiredLeft <> win.ScrollColumn Then
+        Dim prevUpdating As Boolean
+        prevUpdating = Application.ScreenUpdating
+        If prevUpdating Then Application.ScreenUpdating = False
 
         On Error Resume Next
-        If desiredTop <> topRow Then win.ScrollRow = desiredTop
-        If desiredLeft <> leftColumn Then win.ScrollColumn = desiredLeft
+        If desiredTop <> win.ScrollRow Then win.ScrollRow = desiredTop
+        If desiredLeft <> win.ScrollColumn Then win.ScrollColumn = desiredLeft
         On Error GoTo 0
 
-        If previousUpdating Then Application.ScreenUpdating = True
-
+        If prevUpdating Then Application.ScreenUpdating = True
+        
         On Error Resume Next
         m_View.LastAnchor = ws.Cells(desiredTop, desiredLeft).Address(False, False)
         On Error GoTo 0
     End If
 End Sub
+
+'===================================================================================
+'                              PRIVATE HELPERS - Camera
+'===================================================================================
+Private Sub ApplyConfiguredBounds(ByVal visibleRows As Long, ByVal visibleColumns As Long, _
+                                  ByRef topRow As Long, ByRef leftColumn As Long)
+    ' Apply user-configured camera bounds
+    If m_View.BoundsMinColumn > 0 And m_View.BoundsMaxColumn > 0 Then
+        Dim minLeft As Long, maxLeft As Long
+        minLeft = m_View.BoundsMinColumn
+        maxLeft = m_View.BoundsMaxColumn - visibleColumns + 1
+        If maxLeft < minLeft Then maxLeft = minLeft
+        leftColumn = ClampLong(leftColumn, minLeft, maxLeft)
+    End If
+    
+    If m_View.BoundsMinRow > 0 And m_View.BoundsMaxRow > 0 Then
+        Dim minTop As Long, maxTop As Long
+        minTop = m_View.BoundsMinRow
+        maxTop = m_View.BoundsMaxRow - visibleRows + 1
+        If maxTop < minTop Then maxTop = minTop
+        topRow = ClampLong(topRow, minTop, maxTop)
+    End If
+End Sub
+
+'===================================================================================
+'                              PRIVATE HELPERS - Math
+'===================================================================================
 
 Private Function ClampLong(ByVal value As Long, ByVal minValue As Long, ByVal maxValue As Long) As Long
     If maxValue < minValue Then
@@ -549,52 +739,208 @@ Private Function ClampDouble(ByVal value As Double, ByVal minValue As Double, By
     ClampDouble = value
 End Function
 
-Private Function CameraSmoothingFactor(ByVal deltaSeconds As Double) As Double
-    Dim effectiveDelta As Double
-    effectiveDelta = deltaSeconds
-    If effectiveDelta <= 0# Then
-        effectiveDelta = DEFAULT_FRAME_SECONDS
-    End If
-
-    Dim factor As Double
-    factor = 1# - Exp(-CAMERA_SMOOTHING_RATE_PER_SECOND * effectiveDelta)
-    If factor < 0# Then factor = 0#
-    If factor > 1# Then factor = 1#
-
-    CameraSmoothingFactor = factor
-End Function
-
-Private Sub ApplyCameraBoundsForSheet(ByVal ws As Worksheet, ByVal visibleRows As Long, ByVal visibleColumns As Long, ByRef topRow As Long, ByRef leftColumn As Long)
-    If ws Is Sheet9 Then
-        Dim allowedMinLeft As Long
-        Dim allowedMaxLeft As Long
-        allowedMinLeft = MINOTAUR_BOUNDS_MIN_COLUMN
-        allowedMaxLeft = MINOTAUR_BOUNDS_MAX_COLUMN - visibleColumns + 1
-        If allowedMaxLeft < allowedMinLeft Then allowedMaxLeft = allowedMinLeft
-
-        leftColumn = ClampLong(leftColumn, allowedMinLeft, allowedMaxLeft)
-
-        Dim allowedMinTop As Long
-        Dim allowedMaxTop As Long
-        allowedMinTop = MINOTAUR_BOUNDS_MIN_ROW
-        allowedMaxTop = MINOTAUR_BOUNDS_MAX_ROW - visibleRows + 1
-        If allowedMaxTop < allowedMinTop Then allowedMaxTop = allowedMinTop
-
-        topRow = ClampLong(topRow, allowedMinTop, allowedMaxTop)
-    End If
-End Sub
-
 Private Function NormalizeScreenCode(ByVal screenCode As String) As String
     NormalizeScreenCode = UCase$(Trim$(screenCode))
 End Function
 
-Private Sub EnsureWindowZoom(ByVal win As Window, ByVal targetZoom As Long)
-    If win Is Nothing Then Exit Sub
-    If targetZoom <= 0 Then Exit Sub
-
-    On Error Resume Next
-    If win.Zoom <> targetZoom Then
-        win.Zoom = targetZoom
+'===================================================================================
+'                              PRIVATE HELPERS - Scrolling
+'===================================================================================
+Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDir As String, ByVal lastDir As String) As String
+    Dim mapped As String
+    mapped = ScrollCodeToDirectionLetter(scrollCode)
+    If mapped <> "" Then
+        ResolveScrollDirection = mapped
+        Exit Function
     End If
-    On Error GoTo 0
+
+    Dim orientation As String
+    orientation = ScrollOrientation(scrollCode)
+
+    Dim moveCandidate As String
+    Dim lastCandidate As String
+    Dim prevCandidate As String
+    Dim resolved As String
+
+    Dim liveMove As String
+    liveMove = NormalizeDirectionCandidate(DataCacheInstance.GetValue(RANGE_MOVE_DIR))
+
+    moveCandidate = NormalizeDirectionCandidate(moveDir)
+    lastCandidate = NormalizeDirectionCandidate(lastDir)
+    prevCandidate = NormalizeDirectionCandidate(DataCacheInstance.GetValue(RANGE_PREVIOUS_SCROLL))
+
+    resolved = ExtractDirectionalComponent(liveMove, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(moveCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(lastCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(prevCandidate, orientation)
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(liveMove, "")
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(moveCandidate, "")
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    resolved = ExtractDirectionalComponent(lastCandidate, "")
+    If resolved <> "" Then
+        ResolveScrollDirection = resolved
+        Exit Function
+    End If
+
+    ResolveScrollDirection = ExtractDirectionalComponent(prevCandidate, "")
+End Function
+
+Private Function ScrollCodeToDirectionLetter(ByVal scrollCode As String) As String
+    Dim normalized As String
+    normalized = UCase$(Trim$(scrollCode))
+
+    Select Case normalized
+        Case SCROLL_CODE_DIRECT_DOWN, "3", "D"
+            ScrollCodeToDirectionLetter = "D"
+        Case SCROLL_CODE_DIRECT_UP, "4", "U"
+            ScrollCodeToDirectionLetter = "U"
+        Case "R"
+            ScrollCodeToDirectionLetter = "R"
+        Case "L"
+            ScrollCodeToDirectionLetter = "L"
+        Case Else
+            ScrollCodeToDirectionLetter = ""
+    End Select
+End Function
+
+Private Function ScrollOrientation(ByVal scrollCode As String) As String
+    Dim normalized As String
+    normalized = UCase$(Trim$(scrollCode))
+
+    Select Case normalized
+        Case SCROLL_CODE_HORIZONTAL, "2", "R", "L"
+            ScrollOrientation = "H"
+        Case SCROLL_CODE_VERTICAL, "1", _
+             SCROLL_CODE_DIRECT_DOWN, "3", _
+             SCROLL_CODE_DIRECT_UP, "4", _
+             "U", "D"
+            ScrollOrientation = "V"
+        Case Else
+            ScrollOrientation = ""
+    End Select
+End Function
+
+Private Function NormalizeDirectionCandidate(ByVal value As String) As String
+    NormalizeDirectionCandidate = UCase$(Trim$(value))
+End Function
+
+Private Function ExtractDirectionalComponent(ByVal direction As String, ByVal orientation As String) As String
+    Dim normalized As String
+    normalized = NormalizeDirectionCandidate(direction)
+    If normalized = "" Then Exit Function
+
+    Dim index As Long
+    Dim ch As String
+
+    If orientation <> "" Then
+        For index = 1 To Len(normalized)
+            ch = Mid$(normalized, index, 1)
+            Select Case orientation
+                Case "H"
+                    If ch = "L" Or ch = "R" Then
+                        ExtractDirectionalComponent = ch
+                        Exit Function
+                    End If
+                Case "V"
+                    If ch = "U" Or ch = "D" Then
+                        ExtractDirectionalComponent = ch
+                        Exit Function
+                    End If
+            End Select
+        Next index
+    End If
+
+    For index = 1 To Len(normalized)
+        ch = Mid$(normalized, index, 1)
+        Select Case ch
+            Case "U", "D", "L", "R"
+                ExtractDirectionalComponent = ch
+                Exit Function
+        End Select
+    Next index
+End Function
+
+Private Function ShouldPreventRescroll(ByVal currentCell As String, ByVal newDirection As String) As Boolean
+    Dim previousCell As String
+    Dim previousDir As String
+    Dim currentDir As String
+
+    previousCell = DataCacheInstance.GetValue(RANGE_PREVIOUS_CELL)
+    previousDir = DataCacheInstance.GetValue(RANGE_PREVIOUS_SCROLL)
+    currentDir = DataCacheInstance.GetValue(RANGE_SCROLL_DIRECTION)
+
+    Dim normalizedNewDir As String
+    normalizedNewDir = NormalizeDirectionCandidate(newDirection)
+    Dim comparisonDir As String
+    comparisonDir = NormalizeDirectionCandidate(currentDir)
+    If normalizedNewDir <> "" Then comparisonDir = normalizedNewDir
+
+    Dim normalizedPrev As String
+    normalizedPrev = NormalizeDirectionCandidate(previousDir)
+
+    If NormalizeDirectionCandidate(currentCell) = NormalizeDirectionCandidate(previousCell) Then
+        If normalizedPrev <> "" And comparisonDir <> "" Then
+            If normalizedPrev = comparisonDir Then
+                ShouldPreventRescroll = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    ShouldPreventRescroll = False
+End Function
+
+Private Sub PerformWindowScroll(ByVal scrollCode As String, ByVal direction As String)
+    Select Case Trim$(scrollCode)
+        Case SCROLL_CODE_HORIZONTAL
+            Select Case UCase$(direction)
+                Case "R": ActiveWindow.SmallScroll toRight:=SCROLL_AMOUNT_HORIZONTAL
+                Case "L": ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
+            End Select
+        Case SCROLL_CODE_VERTICAL
+            Select Case UCase$(direction)
+                Case "D": ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
+                Case "U": ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
+            End Select
+        Case SCROLL_CODE_DIRECT_DOWN
+            ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
+        Case SCROLL_CODE_DIRECT_UP
+            ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
+        Case Else
+            Select Case UCase$(direction)
+                Case "R": ActiveWindow.SmallScroll toRight:=SCROLL_AMOUNT_HORIZONTAL
+                Case "L": ActiveWindow.SmallScroll toLeft:=SCROLL_AMOUNT_HORIZONTAL
+                Case "D": ActiveWindow.SmallScroll Down:=SCROLL_AMOUNT_VERTICAL
+                Case "U": ActiveWindow.SmallScroll Up:=SCROLL_AMOUNT_VERTICAL
+            End Select
+    End Select
 End Sub

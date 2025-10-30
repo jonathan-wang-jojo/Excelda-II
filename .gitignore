@@ -8,6 +8,7 @@
 .todo/
 .vscode/
 .conda/
+docs/
 *.md
 
 

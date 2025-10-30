@@ -1,28 +1,31 @@
 Option Explicit
 
-' Win32 API Declaration
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
 
 '###################################################################################
-'                              ACTION MANAGEMENT
+'                       GENERIC ACTION KEY MANAGER (C & D)
 '###################################################################################
-' Handles all action items and action sprites (sword, shield, etc.)
+' Generic manager for two action keys (C and D).
+' Tracks key state (pressed/released, hold duration) without game-specific logic.
+' Game-specific actions should be implemented in the active scene or game module.
 '###################################################################################
 
-Private Const SWORD_SPIN_THRESHOLD As Long = 20
+Private Type ActionKeyState
+    IsPressed As Boolean
+    HoldFrames As Long
+    WasJustPressed As Boolean
+    WasJustReleased As Boolean
+End Type
 
 Private Type ActionData
+    CKey As ActionKeyState
+    DKey As ActionKeyState
     CItem As String
     DItem As String
-    CPress As Long
-    DPress As Long
 End Type
 
 Private m_Action As ActionData
 
-'===================================================================================
-'                              INITIALIZATION
-'===================================================================================
 Private Sub Class_Initialize()
     Initialize
 End Sub
@@ -31,9 +34,6 @@ Private Sub Class_Terminate()
     Destroy
 End Sub
 
-'===================================================================================
-'                              CORE LIFECYCLE
-'===================================================================================
 Public Sub Reset()
     ResetState
 End Sub
@@ -47,15 +47,64 @@ Public Sub Initialize()
 End Sub
 
 Private Sub ResetState()
+    ' Reset key states
+    m_Action.CKey.IsPressed = False
+    m_Action.CKey.HoldFrames = 0
+    m_Action.CKey.WasJustPressed = False
+    m_Action.CKey.WasJustReleased = False
+    
+    m_Action.DKey.IsPressed = False
+    m_Action.DKey.HoldFrames = 0
+    m_Action.DKey.WasJustPressed = False
+    m_Action.DKey.WasJustReleased = False
+    
+    ' Reset item assignments
     m_Action.CItem = ""
     m_Action.DItem = ""
-    m_Action.CPress = 0
-    m_Action.DPress = 0
-    LoadItemsFromSheet
+    
+    ' Load items once during initialization
+    SyncItemsFromCache
 End Sub
+
 '===================================================================================
-'                              ACCESSORS
+'                              PUBLIC PROPERTIES
 '===================================================================================
+
+' C Key State
+Public Property Get CKeyPressed() As Boolean
+    CKeyPressed = m_Action.CKey.IsPressed
+End Property
+
+Public Property Get CKeyHoldFrames() As Long
+    CKeyHoldFrames = m_Action.CKey.HoldFrames
+End Property
+
+Public Property Get CKeyJustPressed() As Boolean
+    CKeyJustPressed = m_Action.CKey.WasJustPressed
+End Property
+
+Public Property Get CKeyJustReleased() As Boolean
+    CKeyJustReleased = m_Action.CKey.WasJustReleased
+End Property
+
+' D Key State
+Public Property Get DKeyPressed() As Boolean
+    DKeyPressed = m_Action.DKey.IsPressed
+End Property
+
+Public Property Get DKeyHoldFrames() As Long
+    DKeyHoldFrames = m_Action.DKey.HoldFrames
+End Property
+
+Public Property Get DKeyJustPressed() As Boolean
+    DKeyJustPressed = m_Action.DKey.WasJustPressed
+End Property
+
+Public Property Get DKeyJustReleased() As Boolean
+    DKeyJustReleased = m_Action.DKey.WasJustReleased
+End Property
+
+' Item Assignments (for game-specific logic)
 Public Property Get CItem() As String
     CItem = m_Action.CItem
 End Property
@@ -64,70 +113,42 @@ Public Property Get DItem() As String
     DItem = m_Action.DItem
 End Property
 
-Public Property Get CPress() As Long
-    CPress = m_Action.CPress
-End Property
-
-Public Property Let CPress(ByVal pressFrames As Long)
-    m_Action.CPress = pressFrames
-End Property
-
-Public Property Get DPress() As Long
-    DPress = m_Action.DPress
-End Property
-
-Public Property Let DPress(ByVal pressFrames As Long)
-    m_Action.DPress = pressFrames
-End Property
-
 '===================================================================================
-'                              CORE PROCESSING
+'                              CORE UPDATE
 '===================================================================================
-' Polls current button state and dispatches the appropriate action sprites.
-Public Sub ProcessAction(ByVal keyCode As Integer)
-    LoadItemsFromSheet
-    Dim item As String
-    Dim pressCounter As Long
-    Dim actionSlot As Long
+' Updates key states by polling hardware. Call once per frame.
+Public Sub UpdateKeys()
+    UpdateKeyState KEY_C, m_Action.CKey
+    UpdateKeyState KEY_D, m_Action.DKey
+End Sub
+
+Private Sub UpdateKeyState(ByVal keyCode As Integer, ByRef keyState As ActionKeyState)
+    Dim currentlyPressed As Boolean
+    currentlyPressed = (GetAsyncKeyState(keyCode) <> 0)
     
-    Select Case keyCode
-        Case KEY_C
-            item = m_Action.CItem
-            pressCounter = m_Action.CPress
-            actionSlot = 1
-        Case KEY_D
-            item = m_Action.DItem
-            pressCounter = m_Action.DPress
-            actionSlot = 2
-        Case Else
-            Exit Sub
-    End Select
+    ' Detect edge transitions
+    keyState.WasJustPressed = currentlyPressed And Not keyState.IsPressed
+    keyState.WasJustReleased = Not currentlyPressed And keyState.IsPressed
     
-    If GetAsyncKeyState(keyCode) <> 0 Then
-        pressCounter = pressCounter + 1
-        Select Case item
-            Case "Sword"
-                swordSwipe actionSlot, pressCounter
-            Case "Shield"
-                Call showShield
-        End Select
+    ' Update pressed state
+    keyState.IsPressed = currentlyPressed
+    
+    ' Update hold counter
+    If keyState.IsPressed Then
+        keyState.HoldFrames = keyState.HoldFrames + 1
     Else
-        If item = "Sword" And pressCounter >= SWORD_SPIN_THRESHOLD Then swordSpin
-        pressCounter = 0
+        keyState.HoldFrames = 0
     End If
-    
-    Select Case keyCode
-        Case KEY_C: m_Action.CPress = pressCounter
-        Case KEY_D: m_Action.DPress = pressCounter
-    End Select
 End Sub
 
 '===================================================================================
-'                              SHEET SYNCHRONISATION
+'                              ITEM SYNCHRONIZATION
 '===================================================================================
-Private Sub LoadItemsFromSheet()
+' Syncs item assignments from DataCache to local memory.
+' Call this only when items change (e.g., after pickup), not every frame.
+Public Sub SyncItemsFromCache()
     On Error Resume Next
-    m_Action.CItem = Sheets(SHEET_DATA).Range(RANGE_C_ITEM).Value
-    m_Action.DItem = Sheets(SHEET_DATA).Range(RANGE_D_ITEM).Value
+    m_Action.CItem = DataCacheInstance.GetValue(RANGE_C_ITEM)
+    m_Action.DItem = DataCacheInstance.GetValue(RANGE_D_ITEM)
     On Error GoTo 0
 End Sub

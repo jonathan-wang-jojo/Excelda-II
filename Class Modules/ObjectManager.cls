@@ -166,7 +166,7 @@ Public Sub CollectHeartPiece(ByVal heartIndex As Long)
     If spriteMgr Is Nothing Then Exit Sub
 
     Dim linkSprite As Shape
-    Set linkSprite = spriteMgr.LinkSprite
+    Set linkSprite = spriteMgr.PlayerSprite
     If linkSprite Is Nothing Then Exit Sub
 
     Dim linkWin As Shape
@@ -292,7 +292,7 @@ End Function
 
 Private Function DataSheet() As Worksheet
     On Error Resume Next
-    Set DataSheet = Sheets(SHEET_DATA)
+    Set DataSheet = GameRegistryInstance().GetGameDataSheet()
     On Error GoTo 0
 End Function
 

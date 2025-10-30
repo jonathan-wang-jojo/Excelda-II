@@ -1,42 +1,29 @@
 Option Explicit
 
-Public Sub CommandButton1_Click()
-    ' Run the game using the minotaur sprite configuration
-    ApplyMinotaurSpriteConfig
-    AA_GameLoop.ConfigureGameSheet Me.Name
-    AA_GameLoop.ContinueGame
+' Code for Minotaur Game Sheet
+' Sheet9 (Maze)
+
+Public Sub btnStartGame_Click()
+    ' Reset all managers and start new game
+    Engine_GameLoop.StartNewGameOnSheet Me.Name, ""
 End Sub
 
-Public Sub CommandButton2_Click()
-    ' Reset all managers and start from the configured spawn cell
-    ApplyMinotaurSpriteConfig
-    AA_GameLoop.StartNewGameOnSheet Me.Name, MINOTAUR_START_CELL
+Public Sub btnContinue_Click()
+    ' Continue game from current state
+    Engine_GameLoop.ContinueGameOnSheet Me.Name
 End Sub
 
-Private Sub CommandButton3_Click()
-    ' Make all configured player frames visible and align them to the spawn cell
-    ApplyMinotaurSpriteConfig
-    AA_GameLoop.ConfigureGameSheet Me.Name
-
-    Dim sm As spriteManager
-    Set sm = SpriteManagerInstance()
-
-    Dim ws As Worksheet
-    Set ws = Me
-
-    Dim anchor As Range
-    Set anchor = ws.Range(MINOTAUR_START_CELL)
-
-    AlignFramesToAnchor sm, ws, anchor
-End Sub
-
-Private Sub CommandButton4_Click()
-    DevelopmentConsole.Show
-End Sub
-
-Private Sub CommandButton5_Click()
-    FindPic.Show
-End Sub
+'###################################################################################
+'                       DEPRECATED - SPRITE CONFIGURATION LOGIC
+'###################################################################################
+' NOTE: The functions below (ApplyMinotaurSpriteConfig, ConfigureDirection, etc.)
+'       are legacy sprite management code that should be moved to:
+'       - GameConfigMinotaur.cls (game-specific config)
+'       - SpriteManager.cls (sprite system logic)
+'
+' Keeping them here temporarily for backward compatibility, but they should NOT
+' be called from buttons. Use Engine_GameLoop.ConfigureGameSheet() instead.
+'###################################################################################
 
 Public Sub ApplyMinotaurSpriteConfig()
     Dim sm As spriteManager
