@@ -463,10 +463,10 @@ Private Function ParseSpriteFrameName(ByVal shapeName As String, ByVal baseName 
     
     ' Try to extract direction from end (Up, Down, Left, Right)
     Dim direction As String
-    direction = ExtractTrailingDirection(suffix)
+    direction = ExtractLeadingDirection(suffix)
     If direction <> "" Then
         result.Direction = direction
-    suffix = Mid$(suffix, 1, Len(suffix) - Len(direction))
+        suffix = Mid$(suffix, Len(direction) + 1)
     End If
     
     ' Remaining suffix is the state (Idle, Run, Attack, etc.)
@@ -500,18 +500,19 @@ Private Function ExtractTrailingNumber(ByVal text As String) As Long
     End If
 End Function
 
-Private Function ExtractTrailingDirection(ByVal text As String) As String
-    ' Check if text ends with a direction keyword
+Private Function ExtractLeadingDirection(ByVal text As String) As String
+    If text = "" Then Exit Function
+
     Dim directions As Variant
     directions = Array("Down", "Up", "Left", "Right")
-    
+
     Dim dir As Variant
     For Each dir In directions
         Dim dirStr As String
         dirStr = CStr(dir)
         If Len(text) >= Len(dirStr) Then
-            If Mid$(text, Len(text) - Len(dirStr) + 1) = dirStr Then
-                ExtractTrailingDirection = dirStr
+            If StrComp(Mid$(text, 1, Len(dirStr)), dirStr, vbTextCompare) = 0 Then
+                ExtractLeadingDirection = dirStr
                 Exit Function
             End If
         End If
@@ -688,6 +689,7 @@ End Sub
 
 Public Sub Reset()
     On Error Resume Next
+    HideAllConfiguredFrames
     ResetState
     
     Dim gs As GameState
@@ -737,6 +739,7 @@ Private Sub InitializeSpriteState(ByVal sprite As Shape, ByVal spriteName As Str
 End Sub
 
 Public Sub Destroy()
+    HideAllConfiguredFrames
     ResetState
 End Sub
 
@@ -757,6 +760,50 @@ Private Function GetActiveWorksheet() As Worksheet
         On Error GoTo 0
     End If
 End Function
+
+Private Sub HideAllConfiguredFrames()
+    Dim ws As Worksheet
+    Set ws = GetActiveWorksheet()
+    If ws Is Nothing Then Exit Sub
+
+    Dim frames As Variant
+    frames = AllConfiguredFrameNames()
+    If IsEmpty(frames) Then Exit Sub
+    If IsArray(frames) Then
+        If UBound(frames) < LBound(frames) Then Exit Sub
+    Else
+        Exit Sub
+    End If
+
+    Dim renderer As BatchRenderer
+    On Error Resume Next
+    Set renderer = BatchRendererInstance()
+    On Error GoTo 0
+
+    Dim useRenderer As Boolean
+    useRenderer = Not renderer Is Nothing
+
+    Dim frameName As Variant
+    For Each frameName In frames
+        Dim shape As Shape
+        Set shape = ShapeIfExists(ws, CStr(frameName))
+        If Not shape Is Nothing Then
+            If useRenderer Then
+                renderer.QueueVisibility ws, shape.Name, False
+            Else
+                On Error Resume Next
+                shape.Visible = msoFalse
+                On Error GoTo 0
+            End If
+        End If
+    Next frameName
+
+    If useRenderer Then
+        On Error Resume Next
+        renderer.ApplyBatch
+        On Error GoTo 0
+    End If
+End Sub
 
 
 ' Essential properties
@@ -1032,7 +1079,7 @@ Private Function BaseFrameName(ByVal frameName As String) As String
     Dim i As Long
     For i = nameLength To 1 Step -1
         If Not Mid$(frameName, i, 1) Like "#" Then
-            BaseFrameName = VBA.Left(frameName, i)
+            BaseFrameName = Mid$(frameName, 1, i)
             Exit Function
         End If
     Next i

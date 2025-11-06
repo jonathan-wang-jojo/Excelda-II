@@ -28,7 +28,7 @@ Public Const MIN_PLAYER_SPEED As Double = 2#
 Public Const MAX_PLAYER_SPEED As Double = 60#
 Public Const SPEED_MULTIPLIER As Double = 0.75
 Public Const MIN_PIXELS_PER_TICK As Double = 1#
-Public Const ANIMATION_TICKS_PER_FRAME As Long = 3
+Public Const ANIMATION_TICKS_PER_FRAME As Long = 5
 
 '──────────────────────────────────────────────────────────────────────────────
 ' Input Handling

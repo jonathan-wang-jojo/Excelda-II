@@ -602,9 +602,6 @@ Public Sub MaintainPlayerViewport(Optional ByVal rowMargin As Long = -1, Optiona
     On Error GoTo 0
     If win Is Nothing Then Exit Sub
 
-    Dim previousAnchor As String
-    previousAnchor = m_View.LastAnchor
-
     ' Get current viewport state
     Dim visible As Range
     On Error Resume Next
@@ -620,8 +617,6 @@ Public Sub MaintainPlayerViewport(Optional ByVal rowMargin As Long = -1, Optiona
 
     ' Calculate desired camera position based on mode
     Dim desiredTop As Long, desiredLeft As Long
-    Dim pendingScreenCode As String
-    Dim shouldTrackScreen As Boolean
     
     Select Case m_View.Mode
         Case CameraInstant
@@ -656,16 +651,10 @@ Public Sub MaintainPlayerViewport(Optional ByVal rowMargin As Long = -1, Optiona
             End If
             
         Case CameraGrid
-            ' Snap to predefined screen anchor using row/column offset metadata
-            Dim rowOffset As Long
-            Dim columnOffset As Long
-            rowOffset = SafeOffset(ws.Cells(playerCell.Row, SCREEN_ROW_OFFSET_COLUMN).Value, visibleRows \ 2)
-            columnOffset = SafeOffset(ws.Cells(SCREEN_COLUMN_OFFSET_ROW, playerCell.Column).Value, visibleColumns \ 2)
-
-            desiredTop = playerCell.Row - rowOffset + 1
-            desiredLeft = playerCell.Column - columnOffset + 1
-            pendingScreenCode = ComputeScreenCodeForCell(playerCell)
-            shouldTrackScreen = True
+            ' Grid-based camera relies on trigger system to reposition screens.
+            ' Maintain current scroll position; triggers call FocusOnScreen when needed.
+            desiredTop = win.ScrollRow
+            desiredLeft = win.ScrollColumn
     End Select
 
     ' Apply configured bounds if set
@@ -683,22 +672,6 @@ Public Sub MaintainPlayerViewport(Optional ByVal rowMargin As Long = -1, Optiona
     
     desiredTop = ClampLong(desiredTop, 1, maxTop)
     desiredLeft = ClampLong(desiredLeft, 1, maxLeft)
-
-    Dim finalAnchorAddress As String
-    On Error Resume Next
-    finalAnchorAddress = ws.Cells(desiredTop, desiredLeft).Address(False, False)
-    On Error GoTo 0
-
-    If shouldTrackScreen Then
-        If previousAnchor <> finalAnchorAddress Then
-            Dim resolvedScreenCode As String
-            resolvedScreenCode = pendingScreenCode
-            If resolvedScreenCode = "" Then
-                resolvedScreenCode = ComputeScreenCodeForCell(playerCell)
-            End If
-            UpdateScreenTracking playerCell, resolvedScreenCode
-        End If
-    End If
 
     ' Apply scroll if changed (instant snap, no smoothing)
     If desiredTop <> win.ScrollRow Or desiredLeft <> win.ScrollColumn Then
@@ -742,48 +715,7 @@ Private Sub ApplyConfiguredBounds(ByVal visibleRows As Long, ByVal visibleColumn
     End If
 End Sub
 
-Private Function ComputeScreenCodeForCell(ByVal cell As Range) As String
-    If cell Is Nothing Then Exit Function
-
-    Dim ws As Worksheet
-    Set ws = cell.Worksheet
-
-    Dim rowLabel As String
-    Dim columnLabel As String
-
-    rowLabel = UCase$(Trim$(CStr(ws.Cells(cell.Row, SCREEN_ROW_LABEL_COLUMN).Value)))
-    columnLabel = UCase$(Trim$(CStr(ws.Cells(SCREEN_COLUMN_LABEL_ROW, cell.Column).Value)))
-
-    If rowLabel <> "" And columnLabel <> "" Then
-        ComputeScreenCodeForCell = rowLabel & columnLabel
-    End If
-End Function
-
-Private Sub UpdateScreenTracking(ByVal playerCell As Range, ByVal screenCode As String)
-    If playerCell Is Nothing Then Exit Sub
-
-    Dim ws As Worksheet
-    Set ws = playerCell.Worksheet
-
-    Dim rowLabel As String
-    Dim columnLabel As String
-
-    rowLabel = UCase$(Trim$(CStr(ws.Cells(playerCell.Row, SCREEN_ROW_LABEL_COLUMN).Value)))
-    columnLabel = UCase$(Trim$(CStr(ws.Cells(SCREEN_COLUMN_LABEL_ROW, playerCell.Column).Value)))
-
-    Dim cache As DataCache
-    Set cache = DataCacheInstance()
-    If Not cache Is Nothing Then
-        If rowLabel <> "" Then cache.SetValue RANGE_SCREEN_ROW, rowLabel
-        If columnLabel <> "" Then cache.SetValue RANGE_SCREEN_COLUMN, columnLabel
-    End If
-
-    Dim gs As GameState
-    Set gs = GameStateInstance()
-    If Not gs Is Nothing Then
-        If screenCode <> "" Then gs.CurrentScreenCode = screenCode
-    End If
-End Sub
+*** End Patch
 
 '===================================================================================
 '                              PRIVATE HELPERS - Math

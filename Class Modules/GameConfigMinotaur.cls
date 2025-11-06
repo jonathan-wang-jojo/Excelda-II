@@ -97,7 +97,6 @@ End Sub
 
 Private Sub IGameConfig_OnGameStart()
     ' Called when Minotaur Battle starts (after all managers initialized)
-    ' e.g., Spawn minotaur, start boss music
 End Sub
 
 Private Sub IGameConfig_OnGameEnd()
