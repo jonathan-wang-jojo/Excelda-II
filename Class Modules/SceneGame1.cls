@@ -1,3 +1,4 @@
+'@Folder("Game.Link")
 Option Explicit
 
 ' Link's Adventure screen setup logic

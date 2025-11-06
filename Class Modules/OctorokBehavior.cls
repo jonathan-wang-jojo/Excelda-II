@@ -1,3 +1,4 @@
+'@Folder("Entity.Behaviors")
 Option Explicit
 Implements IBehavior
 

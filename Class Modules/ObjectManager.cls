@@ -1,3 +1,4 @@
+'@Folder("Engine.Managers")
 Option Explicit
 
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)

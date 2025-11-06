@@ -1,6 +1,9 @@
+'@Folder("Engine.Core")
 Option Explicit
 
-' Thin wrapper – delegates to SpecialEventManager
+'═══════════════════════════════════════════════════════════════════════════════
+' ENGINE EVENTS
+'═══════════════════════════════════════════════════════════════════════════════
 
 Public Sub SpecialEventTrigger(ByVal eventCode As String)
     Dim manager As SpecialEventManager

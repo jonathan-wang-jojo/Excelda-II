@@ -1,3 +1,4 @@
+'@Folder("Engine.Managers")
 Option Explicit
 
 ' Manages screen layouts for games with multiple screens

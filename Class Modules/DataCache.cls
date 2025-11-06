@@ -1,18 +1,13 @@
+'@Folder("Engine.Systems")
 Option Explicit
 
 '═══════════════════════════════════════════════════════════════════════════════
-' DataCache.cls - Memory-resident cache for Data sheet state variables
+' DATA CACHE
 '═══════════════════════════════════════════════════════════════════════════════
-'
-' PURPOSE:
-'   Eliminate 3-9ms per frame overhead by caching frequently accessed game state
-'   variables in memory instead of reading/writing to Excel cells.
-'
-' DESIGN:
-'   - Drop-in replacement for dataSheet.Range(RANGE_X).Value
-'   - Maps RANGE_* constants to internal string variables
-'   - Handles cell address aliases (C7=SCROLL_DIRECTION/SCREEN_ROW)
-'   - Dirty tracking for efficient sheet writes
+' Memory-resident cache for Data sheet state variables
+' Eliminates 3-9ms per frame overhead by caching frequently accessed game state
+' Drop-in replacement for dataSheet.Range(RANGE_X).Value with dirty tracking
+'═══════════════════════════════════════════════════════════════════════════════
 '   - Fallback mode if cache fails
 '
 ' USAGE:

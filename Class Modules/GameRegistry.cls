@@ -1,13 +1,12 @@
+'@Folder("Engine.Systems")
 Option Explicit
 
 '═══════════════════════════════════════════════════════════════════════════════
 ' GAME REGISTRY
 '═══════════════════════════════════════════════════════════════════════════════
-' Central registry for game configurations. Acts as a factory for game instances.
-' Allows engine to discover and load games dynamically without hardcoded references.
-'
-' Usage:
-'   Dim registry As GameRegistry
+' Central registry for game configurations
+' Acts as factory for game instances with dynamic discovery
+'═══════════════════════════════════════════════════════════════════════════════
 '   Set registry = New GameRegistry
 '   registry.RegisterGame New GameConfigLink
 '   registry.RegisterGame New GameConfigMinotaur

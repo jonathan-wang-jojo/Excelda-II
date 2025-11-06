@@ -1,3 +1,5 @@
+Attribute VB_Name = "Constants"
+'@Folder("Shared")
 Option Explicit
 
 '═══════════════════════════════════════════════════════════════════════════════

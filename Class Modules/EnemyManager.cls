@@ -1,10 +1,11 @@
+'@Folder("Legacy.Managers")
 Option Explicit
 
-'###################################################################################
-'                              ENEMY MANAGER
-'###################################################################################
-
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+
+'═══════════════════════════════════════════════════════════════════════════════
+' ENEMY MANAGER (LEGACY - Migrate to EntityManager)
+'═══════════════════════════════════════════════════════════════════════════════
 
 Private Const MAX_ENEMY_SLOTS As Long = 4
 

@@ -1,10 +1,11 @@
+'@Folder("Game.Link")
 Option Explicit
 
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
-'####################################################################################
-'    Entry point for Link action handling
-'####################################################################################
+'═══════════════════════════════════════════════════════════════════════════════
+' LINK GAME ACTIONS
+'═══════════════════════════════════════════════════════════════════════════════
 Public Sub ProcessLinkActions(ByVal actionManager As ActionManager)
     If actionManager Is Nothing Then Exit Sub
 

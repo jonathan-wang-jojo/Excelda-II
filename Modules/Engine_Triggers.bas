@@ -1,13 +1,9 @@
+'@Folder("Engine.Core")
 Option Explicit
 
-'###################################################################################
-'                              TRIGGER SYSTEM
-'###################################################################################
-' Trigger Code Format: S[Dir][Fall][XX][Action][EnemyType][EnemyNum][Dir][CellAddr]
-' Example: S1XXXXETSK01DA1
-'   S       = Scroll indicator
-'   1       = Scroll direction (1=Right, 2=Left, 3=Down, 4=Up)
-'   XX      = Fall indicator (FL=Fall, JD=Jump Down)
+'═══════════════════════════════════════════════════════════════════════════════
+' TRIGGER SYSTEM
+'═══════════════════════════════════════════════════════════════════════════════
 '   XX      = Padding
 '   ET      = Action (ET=Enemy Trigger, SE=Special Event, RL=Relocate)
 '   SK      = Enemy type (SK=Skeleton, SC=Sandcrab, OC=Octorok, etc.)

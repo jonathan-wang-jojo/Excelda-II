@@ -1,3 +1,4 @@
+'@Folder("Shared")
 Option Explicit
 
 Private Type GameData

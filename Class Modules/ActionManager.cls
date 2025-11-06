@@ -1,8 +1,11 @@
+'@Folder("Engine.Managers")
 Option Explicit
 
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
 
-'###################################################################################
+'═══════════════════════════════════════════════════════════════════════════════
+' ACTION MANAGER - Generic Input State Tracker
+'═══════════════════════════════════════════════════════════════════════════════
 '                       GENERIC ACTION KEY MANAGER (C & D)
 '###################################################################################
 ' Generic manager for two action keys (C and D).

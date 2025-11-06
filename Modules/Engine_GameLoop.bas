@@ -1,8 +1,12 @@
+'@Folder("Engine.Core")
 Option Explicit
 
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
 Private Declare PtrSafe Function GetKeyState Lib "User32.dll" (ByVal nVirtKey As Long) As Integer
 
+'═══════════════════════════════════════════════════════════════════════════════
+' Module-Level State
+'═══════════════════════════════════════════════════════════════════════════════
 Private m_GameState As GameState
 Private m_SpriteManager As SpriteManager
 Private m_ActionManager As ActionManager
@@ -20,6 +24,10 @@ Private m_PrevScreenUpdating As Boolean
 Private m_PrevEnableEvents As Boolean
 Private m_PrevDisplayStatusBar As Boolean
 Private m_PrevCalculation As XlCalculation
+
+'═══════════════════════════════════════════════════════════════════════════════
+' PUBLIC API
+'═══════════════════════════════════════════════════════════════════════════════
 
 Public Sub Start()
     On Error GoTo ErrorHandler
@@ -56,7 +64,7 @@ Public Sub ContinueGameOnSheet(ByVal sheetName As String)
 End Sub
 
 Private Function GetActiveSheetName() As String
-    GetActiveSheetName = IIf(m_CustomGameSheet <> "", m_CustomGameSheet, SHEET_GAME)
+    GetActiveSheetName = IIf(m_CustomGameSheet <> vbNullString, m_CustomGameSheet, SHEET_GAME)
 End Function
 
 Private Function GetGameWorksheet() As Worksheet
@@ -807,20 +815,20 @@ Private Sub ApplyPendingStartState()
     ' Clear carried-over action assignments and overlays before relocating
     If Not dataSheet Is Nothing Then
         With dataSheet
-            .Range(RANGE_ACTION_C).Value = ""
-            .Range(RANGE_ACTION_D).Value = ""
-            .Range(RANGE_C_ITEM).Value = ""
-            .Range(RANGE_D_ITEM).Value = ""
-            .Range(RANGE_SHIELD_STATE).Value = ""
+            .Range(RANGE_ACTION_C).Value = vbNullString
+            .Range(RANGE_ACTION_D).Value = vbNullString
+            .Range(RANGE_C_ITEM).Value = vbNullString
+            .Range(RANGE_D_ITEM).Value = vbNullString
+            .Range(RANGE_SHIELD_STATE).Value = vbNullString
         End With
     End If
 
     If Not cache Is Nothing Then
-        cache.SetValue RANGE_ACTION_C, ""
-        cache.SetValue RANGE_ACTION_D, ""
-        cache.SetValue RANGE_C_ITEM, ""
-        cache.SetValue RANGE_D_ITEM, ""
-        cache.SetValue RANGE_SHIELD_STATE, ""
+        cache.SetValue RANGE_ACTION_C, vbNullString
+        cache.SetValue RANGE_ACTION_D, vbNullString
+        cache.SetValue RANGE_C_ITEM, vbNullString
+        cache.SetValue RANGE_D_ITEM, vbNullString
+        cache.SetValue RANGE_SHIELD_STATE, vbNullString
     End If
 
     RelocateToSimpleLocation pending
@@ -845,15 +853,15 @@ Private Sub ApplyPendingStartState()
     ' Keep cache in sync with initial spawn state to avoid legacy fall/bounce flags
     If Not cache Is Nothing Then
         cache.SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
-        cache.SetValue RANGE_PREVIOUS_SCROLL, ""
-        cache.SetValue RANGE_SHIELD_STATE, ""
+        cache.SetValue RANGE_PREVIOUS_SCROLL, vbNullString
+        cache.SetValue RANGE_SHIELD_STATE, vbNullString
         cache.SetValue RANGE_FALLING, "N"
         cache.SetValue RANGE_FALL_SEQUENCE, "N"
     End If
 
-    gs.TriggerCellAddress = ""
-    gs.CodeCell = ""
-    gs.MoveDir = ""
+    gs.TriggerCellAddress = vbNullString
+    gs.CodeCell = vbNullString
+    gs.MoveDir = vbNullString
     Exit Sub
 
 StartStateError:
@@ -964,9 +972,9 @@ Private Sub PerformRelocation(ByVal targetCell As Range, ByVal gs As GameState, 
     Dim dataSheet As Worksheet
     Set dataSheet = GameRegistryInstance().GetGameDataSheet()
     DataCacheInstance().SetValue RANGE_CURRENT_CELL, gs.PlayerCellAddress
-    DataCacheInstance().SetValue RANGE_MOVE_DIR, ""
-    gs.MoveDir = ""
-    gs.CodeCell = ""
+    DataCacheInstance().SetValue RANGE_MOVE_DIR, vbNullString
+    gs.MoveDir = vbNullString
+    gs.CodeCell = vbNullString
 
     AlignViewport
 
@@ -1221,10 +1229,10 @@ Private Sub Cleanup()
     
     StopGameLoop True
 
-    If m_PostStopActivationSheet <> "" Then
+    If m_PostStopActivationSheet <> vbNullString Then
         Sheets(m_PostStopActivationSheet).Activate
-        m_CustomGameSheet = ""
-        m_PostStopActivationSheet = ""
+        m_CustomGameSheet = vbNullString
+        m_PostStopActivationSheet = vbNullString
     End If
 End Sub
 
@@ -1242,10 +1250,10 @@ Private Sub StopGameLoop(Optional ByVal clearCustomSheet As Boolean = True)
     RestoreExcelNavigation
     Application.CutCopyMode = False
     Application.ScreenUpdating = True
-    m_PendingStartCell = ""
+    m_PendingStartCell = vbNullString
     
     If clearCustomSheet Then
-        m_CustomGameSheet = ""
+        m_CustomGameSheet = vbNullString
         If SheetExists(SHEET_TITLE) Then
             Sheets(SHEET_TITLE).Activate
         End If

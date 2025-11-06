@@ -1,14 +1,11 @@
+'@Folder("Shared")
 Option Explicit
 
-'===================================================================================
-'                           SINGLETON ACCESSORS
-'===================================================================================
-' Provides central access to all game managers:
-'   - GameState
-'   - ActionManager
-'   - EnemyManager
-'   - SpriteManager
-'===================================================================================
+'═══════════════════════════════════════════════════════════════════════════════
+' SINGLETON ACCESSORS
+'═══════════════════════════════════════════════════════════════════════════════
+' Provides central access to all game managers with lazy initialization
+'═══════════════════════════════════════════════════════════════════════════════
 
 Private m_GameState As GameState
 Private m_ActionManager As ActionManager

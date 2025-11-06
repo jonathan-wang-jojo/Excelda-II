@@ -1,8 +1,9 @@
+'@Folder("Entity.Behaviors")
 Option Explicit
 
-'===================================================================================
-'                              IBEHAVIOR INTERFACE
-'===================================================================================
+'═══════════════════════════════════════════════════════════════════════════════
+' IBEHAVIOR INTERFACE
+'═══════════════════════════════════════════════════════════════════════════════
 ' Interface for all entity behaviors (AI, dialogue, pickups, etc.)
 ' Implement this interface to create custom entity behaviors
 '

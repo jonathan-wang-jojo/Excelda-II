@@ -1,10 +1,11 @@
+'@Folder("Engine.Systems")
 Option Explicit
 
 '═══════════════════════════════════════════════════════════════════════════════
-' BatchRenderer - Queue shape position updates, apply in single batch
+' BATCH RENDERER
 '═══════════════════════════════════════════════════════════════════════════════
-' Eliminates 0.5-1ms per Shape.Top/Left write by batching updates
-' 40 individual writes (20-40ms) → 1 batch (2-5ms) = 4-8x speedup
+' Queues shape position updates, applies in single batch
+' Performance: 40 individual writes (20-40ms) → 1 batch (2-5ms) = 4-8x speedup
 '═══════════════════════════════════════════════════════════════════════════════
 
 Private Type ShapeUpdate

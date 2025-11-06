@@ -1,3 +1,4 @@
+'@Folder("Engine.Managers")
 Option Explicit
 
 Private Declare PtrSafe Function GetAsyncKeyState Lib "User32.dll" (ByVal vKey As Integer) As Long
