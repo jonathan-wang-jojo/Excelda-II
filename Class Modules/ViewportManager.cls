@@ -426,9 +426,9 @@ Public Sub HandleScrollTransition(ByVal scrollCode As String)
 
     PerformWindowScroll normalizedCode, primaryDir
 
-    DataCacheInstance.SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
-    DataCacheInstance.SetValue RANGE_PREVIOUS_SCROLL, primaryDir
-    DataCacheInstance.SetValue RANGE_SCROLL_DIRECTION, primaryDir
+    DataCacheInstance().SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
+    DataCacheInstance().SetValue RANGE_PREVIOUS_SCROLL, primaryDir
+    DataCacheInstance().SetValue RANGE_SCROLL_DIRECTION, primaryDir
 
     UpdateScreenLocation normalizedCode, primaryDir
 
@@ -438,7 +438,7 @@ Public Sub HandleScrollTransition(ByVal scrollCode As String)
     If setupMacro <> "" Then
         On Error GoTo ScreenSetupError
         SceneManagerInstance().ApplyScreen setupMacro
-        DataCacheInstance.Flush GameRegistryInstance().GetGameDataSheet()
+        DataCacheInstance().Flush GameRegistryInstance().GetGameDataSheet()
         On Error GoTo ErrorHandler
     End If
 
@@ -558,8 +558,8 @@ Public Sub UpdateScreenLocation(ByVal scrollDir As String, ByVal direction As St
 
     gs.CurrentScreenCode = screenCode
 
-    DataCacheInstance.SetValue RANGE_SCREEN_ROW, rowLabel
-    DataCacheInstance.SetValue RANGE_SCREEN_COLUMN, columnLabel
+    DataCacheInstance().SetValue RANGE_SCREEN_ROW, rowLabel
+    DataCacheInstance().SetValue RANGE_SCREEN_COLUMN, columnLabel
 
     FocusOnScreen screenCode
 
@@ -763,11 +763,11 @@ Private Function ResolveScrollDirection(ByVal scrollCode As String, ByVal moveDi
     Dim resolved As String
 
     Dim liveMove As String
-    liveMove = NormalizeDirectionCandidate(DataCacheInstance.GetValue(RANGE_MOVE_DIR))
+    liveMove = NormalizeDirectionCandidate(DataCacheInstance().GetValue(RANGE_MOVE_DIR))
 
     moveCandidate = NormalizeDirectionCandidate(moveDir)
     lastCandidate = NormalizeDirectionCandidate(lastDir)
-    prevCandidate = NormalizeDirectionCandidate(DataCacheInstance.GetValue(RANGE_PREVIOUS_SCROLL))
+    prevCandidate = NormalizeDirectionCandidate(DataCacheInstance().GetValue(RANGE_PREVIOUS_SCROLL))
 
     resolved = ExtractDirectionalComponent(liveMove, orientation)
     If resolved <> "" Then
@@ -894,9 +894,9 @@ Private Function ShouldPreventRescroll(ByVal currentCell As String, ByVal newDir
     Dim previousDir As String
     Dim currentDir As String
 
-    previousCell = DataCacheInstance.GetValue(RANGE_PREVIOUS_CELL)
-    previousDir = DataCacheInstance.GetValue(RANGE_PREVIOUS_SCROLL)
-    currentDir = DataCacheInstance.GetValue(RANGE_SCROLL_DIRECTION)
+    previousCell = DataCacheInstance().GetValue(RANGE_PREVIOUS_CELL)
+    previousDir = DataCacheInstance().GetValue(RANGE_PREVIOUS_SCROLL)
+    currentDir = DataCacheInstance().GetValue(RANGE_SCROLL_DIRECTION)
 
     Dim normalizedNewDir As String
     normalizedNewDir = NormalizeDirectionCandidate(newDirection)

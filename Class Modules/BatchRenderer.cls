@@ -27,6 +27,18 @@ Private Sub Class_Initialize()
     m_Count = 0
 End Sub
 
+Public Sub QueueSprite(ByVal shapeName As String, ByVal newTop As Double, ByVal newLeft As Double, ByVal isVisible As Boolean)
+    '───────────────────────────────────────────────────────────────────────────
+    ' Queue a complete sprite update (position + visibility) - convenience method
+    ' Uses ActiveSheet as worksheet (for compatibility with SpriteComponent)
+    '───────────────────────────────────────────────────────────────────────────
+    Dim ws As Worksheet
+    Set ws = ActiveSheet
+    
+    QueuePosition ws, shapeName, newTop, newLeft
+    QueueVisibility ws, shapeName, isVisible
+End Sub
+
 Public Sub QueuePosition(ByVal ws As Worksheet, ByVal shapeName As String, ByVal newTop As Double, ByVal newLeft As Double)
     '───────────────────────────────────────────────────────────────────────────
     ' Queue a shape position update (deferred until ApplyBatch)

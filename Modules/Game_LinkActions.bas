@@ -3,6 +3,41 @@ Option Explicit
 Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
 
 '####################################################################################
+'    Entry point for Link action handling
+'####################################################################################
+Public Sub ProcessLinkActions(ByVal actionManager As ActionManager)
+    If actionManager Is Nothing Then Exit Sub
+
+    ' Handle C key action
+    If actionManager.CKeyPressed Then
+        Select Case actionManager.CItem
+            Case "Sword"
+                swordSwipe 1, actionManager.CKeyHoldFrames
+            Case "Shield"
+                showShield
+        End Select
+    ElseIf actionManager.CKeyJustReleased Then
+        If actionManager.CItem = "Sword" And actionManager.CKeyHoldFrames >= 20 Then
+            swordSpin
+        End If
+    End If
+
+    ' Handle D key action
+    If actionManager.DKeyPressed Then
+        Select Case actionManager.DItem
+            Case "Sword"
+                swordSwipe 2, actionManager.DKeyHoldFrames
+            Case "Shield"
+                showShield
+        End Select
+    ElseIf actionManager.DKeyJustReleased Then
+        If actionManager.DItem = "Sword" And actionManager.DKeyHoldFrames >= 20 Then
+            swordSpin
+        End If
+    End If
+End Sub
+
+'####################################################################################
 '#    Player Sprite Context Helpers
 '####################################################################################
 Private Property Get PlayerSprite() As Shape
@@ -25,7 +60,7 @@ Private Sub SyncPlayerState(ByVal playerShape As Shape, ByVal manager As SpriteM
     
     On Error Resume Next
     gs.PlayerCellAddress = playerShape.TopLeftCell.Address
-    DataCacheInstance.SetValue RANGE_CURRENT_CELL, gs.PlayerCellAddress
+    DataCacheInstance().SetValue RANGE_CURRENT_CELL, gs.PlayerCellAddress
     On Error GoTo 0
 End Sub
 
@@ -202,7 +237,7 @@ Public Sub Falling()
     Dim playerSheet As Worksheet
     If Not EnsurePlayerContext(gs, manager, playerShape, playerSheet) Then Exit Sub
     
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "Y"
+    DataCacheInstance().SetValue RANGE_FALL_SEQUENCE, "Y"
 
     Dim targetCode As String
     targetCode = Mid$(gs.CodeCell, 5, 4)
@@ -223,7 +258,7 @@ Public Sub Falling()
 
     If fallFrames(1) Is Nothing Or fallFrames(2) Is Nothing Or fallFrames(3) Is Nothing Then
         playerShape.Visible = True
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "N"
+    DataCacheInstance().SetValue RANGE_FALL_SEQUENCE, "N"
         Exit Sub
     End If
 
@@ -260,7 +295,7 @@ Public Sub Falling()
         SyncPlayerState playerShape, manager, gs
     End If
 
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "N"
+    DataCacheInstance().SetValue RANGE_FALL_SEQUENCE, "N"
 End Sub
 
 Public Sub JumpDown()
@@ -270,8 +305,8 @@ Public Sub JumpDown()
     Dim playerSheet As Worksheet
     If Not EnsurePlayerContext(gs, manager, playerShape, playerSheet) Then Exit Sub
     
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "Y"
-    DataCacheInstance.SetValue RANGE_SCROLL_COOLDOWN, "0"
+    DataCacheInstance().SetValue RANGE_FALL_SEQUENCE, "Y"
+    DataCacheInstance().SetValue RANGE_SCROLL_COOLDOWN, "0"
 
     Dim startCell As Range
     Set startCell = playerShape.TopLeftCell
@@ -301,7 +336,7 @@ Public Sub JumpDown()
     If jumpFrames(1) Is Nothing Or jumpFrames(2) Is Nothing Or jumpFrames(3) Is Nothing Then
         If Not shadow Is Nothing Then shadow.Visible = False
         playerShape.Visible = True
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "N"
+    DataCacheInstance().SetValue RANGE_FALL_SEQUENCE, "N"
         Exit Sub
     End If
 
@@ -336,7 +371,7 @@ Public Sub JumpDown()
 
     If Not shadow Is Nothing Then shadow.Visible = False
 
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "N"
+    DataCacheInstance().SetValue RANGE_FALL_SEQUENCE, "N"
 End Sub
 
 '####################################################################################
@@ -584,7 +619,7 @@ Public Sub showShield()
     Dim linkSheet As Worksheet
     If Not EnsurePlayerContext(gs, manager, link, linkSheet) Then Exit Sub
 
-    DataCacheInstance.SetValue RANGE_SHIELD_STATE, "Y"
+    DataCacheInstance().SetValue RANGE_SHIELD_STATE, "Y"
 
     Dim shieldUp As Shape
     Dim shieldDown As Shape

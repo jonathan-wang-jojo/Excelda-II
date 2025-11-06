@@ -40,7 +40,7 @@ Private Property Get IGameConfig_PlayerSpriteBaseName() As String
 End Property
 
 Private Property Get IGameConfig_PlayerSpeed() As Double
-    IGameConfig_PlayerSpeed = 24#
+    IGameConfig_PlayerSpeed = 12#
 End Property
 
 Private Property Get IGameConfig_StartCell() As String
@@ -51,8 +51,8 @@ End Property
 ' IGameConfig Implementation - Camera Configuration
 '──────────────────────────────────────────────────────────────────────────────
 Private Property Get IGameConfig_CameraMode() As Long
-    ' Use margin-based camera (will be CameraGrid once quadrant system implemented)
-    IGameConfig_CameraMode = 1  ' CameraMargins
+    ' Zelda-style grid quadrant camera (snaps to predefined screens)
+    IGameConfig_CameraMode = 2  ' CameraGrid
 End Property
 
 Private Property Get IGameConfig_CameraBoundsMinRow() As Long

@@ -101,16 +101,16 @@ Public Sub LoadFromData(enemyTypeName As String, slotNum As Long, dataRow As Lon
         ' Column B: Name (display only)
         ' Column C: Visible? (Y/N)
         Life = Val(.Cells(dataRow, 4).Value)              ' Col D: Life
-        Direction = Trim(.Cells(dataRow, 6).Value)        ' Col F: Direction (often blank)
+        Direction = Trim$(.Cells(dataRow, 6).Value)        ' Col F: Direction (often blank)
         Speed = Val(.Cells(dataRow, 7).Value)             ' Col G: Speed
         ' Column H: Frame Count (unused)
         InitialCount = Val(.Cells(dataRow, 9).Value)      ' Col I: Enemy Count (animation speed)
         Count = InitialCount
-        Behavior = Trim(.Cells(dataRow, 10).Value)        ' Col J: Behaviour
-        ChangeRotation = Trim(.Cells(dataRow, 11).Value)  ' Col K: Change Rotation?
+        Behavior = Trim$(.Cells(dataRow, 10).Value)        ' Col J: Behaviour
+        ChangeRotation = Trim$(.Cells(dataRow, 11).Value)  ' Col K: Change Rotation?
         
         CollisionDamage = Val(.Cells(dataRow, 12).Value)  ' Col L: Collision damage
-        CanShoot = Trim(.Cells(dataRow, 13).Value)        ' Col M: Can shoot? (projectile name or N)
+        CanShoot = Trim$(.Cells(dataRow, 13).Value)        ' Col M: Can shoot? (projectile name or N)
         ShootDamage = Val(.Cells(dataRow, 14).Value)      ' Col N: Shoot Damage
         ChargeSpeed = Val(.Cells(dataRow, 15).Value)      ' Col O: Can Charge (speed)
         ChargeDamage = Val(.Cells(dataRow, 16).Value)     ' Col P: Charge damage

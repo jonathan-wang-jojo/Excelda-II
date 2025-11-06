@@ -41,7 +41,7 @@ Public Sub LoadSprite(shapeName As String)
     m_AnimFrames = Empty ' Clear animation
     
     ' Queue initial render via BatchRenderer
-    Singletons.BatchRenderer.QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, True
+    BatchRendererInstance().QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, True
 End Sub
 
 ' Load animated sprite (multiple frames)
@@ -57,7 +57,7 @@ Public Sub LoadAnimation(frameNames As Variant, Optional frameDuration As Double
     m_IsVisible = True
     
     ' Queue initial render
-    Singletons.BatchRenderer.QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, True
+    BatchRendererInstance().QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, True
 End Sub
 
 '===================================================================================
@@ -73,7 +73,7 @@ Public Sub Update()
     End If
     
     ' Queue sprite position update via BatchRenderer
-    Singletons.BatchRenderer.QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, m_IsVisible
+    BatchRendererInstance().QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, m_IsVisible
 End Sub
 
 Private Sub UpdateAnimation()
@@ -92,12 +92,12 @@ End Sub
 
 Public Sub Show()
     m_IsVisible = True
-    Singletons.BatchRenderer.QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, True
+    BatchRendererInstance().QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, True
 End Sub
 
 Public Sub Hide()
     m_IsVisible = False
-    Singletons.BatchRenderer.QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, False
+    BatchRendererInstance().QueueSprite m_ShapeName, m_Transform.x, m_Transform.y, False
 End Sub
 
 '===================================================================================

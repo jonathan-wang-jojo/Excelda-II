@@ -21,8 +21,8 @@ Option Explicit
 '   direction = dataSheet.Range(RANGE_MOVE_DIR).Value
 '
 '   ' Use:
-'   DataCacheInstance.SetValue RANGE_MOVE_DIR, "U"
-'   direction = DataCacheInstance.GetValue(RANGE_MOVE_DIR)
+'   DataCacheInstance().SetValue RANGE_MOVE_DIR, "U"
+'   direction = DataCacheInstance().GetValue(RANGE_MOVE_DIR)
 '
 ' PERFORMANCE:
 '   Each Range().Value call costs 0.1-0.3ms

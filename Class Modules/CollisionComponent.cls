@@ -53,8 +53,8 @@ End Function
 
 ' Check collision with Link (convenience method)
 Public Function CheckCollisionWithLink() As Boolean
-    Dim linkX As Double: linkX = Singletons.DataCache.GetValue("LinkX")
-    Dim linkY As Double: linkY = Singletons.DataCache.GetValue("LinkY")
+    Dim linkX As Double: linkX = DataCacheInstance().GetValue("LinkX")
+    Dim linkY As Double: linkY = DataCacheInstance().GetValue("LinkY")
     
     ' Link collision radius (standard 8 pixels)
     CheckCollisionWithLink = CheckCollisionWithPoint(linkX, linkY, 8)

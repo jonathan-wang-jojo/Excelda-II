@@ -4,7 +4,8 @@ Option Explicit
 ' Link Game Title Screen
 
 Private Sub btnDevConsole_Click()
-    DevelopmentConsole.Show
+    ' DevelopmentConsole.Show
+    MsgBox "Development Console temporarily disabled"
 End Sub
 
 Private Sub btnStartGame_Click()

@@ -189,9 +189,9 @@ Private Sub HandleEvent0004()
     ShowDialogue dataSheet.Range("T12").Value
 
     dataSheet.Range("Z3").Value = "Y"
-    DataCacheInstance.SetValue RANGE_C_ITEM, "Shield"
+    DataCacheInstance().SetValue RANGE_C_ITEM, "Shield"
 
-    ActionManagerInstance.SyncItemsFromCache
+    ActionManagerInstance().SyncItemsFromCache
 
     ws.Range(ws.Range("DC595"), ws.Range("DC595").Offset(11, 9)).Value = ""
     ws.Range(ws.Range("CQ613"), ws.Range("CQ613").Offset(1, 7)).Value = ""
@@ -244,9 +244,9 @@ Private Sub GiveLinkSword(ByVal ws As Worksheet)
     ws.Range("FG507:FG514").Value = ""
 
     dataSheet.Range("Z4").Value = "Y"
-    DataCacheInstance.SetValue RANGE_D_ITEM, "Sword"
+    DataCacheInstance().SetValue RANGE_D_ITEM, "Sword"
 
-    ActionManagerInstance.SyncItemsFromCache
+    ActionManagerInstance().SyncItemsFromCache
 End Sub
 
 Private Sub AnimateOwls(ByVal owl1 As Shape, ByVal owl2 As Shape, ByVal steps As Long, ByVal deltaTop As Double, ByVal deltaLeft As Double)

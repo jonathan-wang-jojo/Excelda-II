@@ -91,7 +91,7 @@ End Enum
 '──────────────────────────────────────────────────────────────────────────────
 Public Const SHEET_GAME As String = "Game1"
 Public Const SHEET_DATA As String = "Data"
-Public Const SHEET_TITLE As String = "Maze Title"
+Public Const SHEET_TITLE As String = "Title"  ' Link game title screen
 
 '──────────────────────────────────────────────────────────────────────────────
 ' Data Sheet Cell Ranges (Game-Specific State Storage)

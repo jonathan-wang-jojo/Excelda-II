@@ -1,6 +1,11 @@
+Option Explicit
+
 Private Sub ActionBox_Change()
 
-If ActionBox.Value <> "Relocate" Then
+Dim actionBox As Variant
+Set actionBox = Me.ActionBox
+
+If actionBox.Value <> "Relocate" Then
     RelocateBox.Value = ""
     RelocateBox.Locked = True
 Else
@@ -11,11 +16,11 @@ End Sub
 
 Private Sub coordsButton_Click()
 
-Dim myTop, myLeft, myCell
+Dim myTop As Double, myLeft As Double, myCell As String
 
 myTop = ActiveSheet.Shapes(NameBox.Value).Top
 myLeft = ActiveSheet.Shapes(NameBox.Value).Left
-myCell = ActiveSheet.Shapes(NameBox.Value).TopLeftCell.address
+myCell = ActiveSheet.Shapes(NameBox.Value).TopLeftCell.Address
 
 
 MsgBox ("Top = " & myTop & Chr(10) _
@@ -39,15 +44,15 @@ End Sub
 
 Private Sub EnemyLocationBox_Exit(ByVal Cancel As MSForms.ReturnBoolean)
 
-Dim myVal
+Dim myVal As Long
 
-myVal = EnemyLocationBox.Value
+myVal = Len(EnemyLocationBox.Value)
 
 If myVal <> 4 Then
 
     MsgBox "The unique reference must be four characters long"
     
-    EnemyLocationBox.Value = ""
+    EnemyLocationBox.Value = vbNullString
 
 End If
 
@@ -55,7 +60,7 @@ End Sub
 
 Private Sub FindButton_Click()
 
-Dim myPic
+Dim myPic As String
 
 myPic = NameBox.Value
 
@@ -81,32 +86,33 @@ End Sub
 
 Private Sub GenerateCodeButton_Click()
 
-Dim myAction, myEnemy, myScroll, myDirection, myRelocate, myEnemyRelocate
+Dim myAction As String, myEnemy As String, myScroll As String
+Dim myDirection As String, myRelocate As String, myEnemyRelocate As String
 
-myAction = ""
-myEnemy = ""
-myScroll = ""
-myDirection = ""
-myRelocate = ""
-myEnemyRelocate = ""
+myAction = vbNullString
+myEnemy = vbNullString
+myScroll = vbNullString
+myDirection = vbNullString
+myRelocate = vbNullString
+myEnemyRelocate = vbNullString
 
 
-If ActionBox.Value = "" Then
+If ActionBox.Value = vbNullString Then
     MsgBox "Please select an action (or 'none')"
     Exit Sub
 End If
 
-If ActionBox.Value = "Relocate" And RelocateBox.Value = "" Then
+If ActionBox.Value = "Relocate" And RelocateBox.Value = vbNullString Then
     MsgBox "Please type a cell reference into the 'Relocate to' box"
     Exit Sub
 End If
 
-If EnemyBox.Value = "" Then
+If EnemyBox.Value = vbNullString Then
     MsgBox "Please select an enemy (or 'none')"
     Exit Sub
 End If
 
-If EnemyBox.Value <> "None" And EnemyLocationBox.Value = "" Then
+If EnemyBox.Value <> "None" And EnemyLocationBox.Value = vbNullString Then
     MsgBox "Please enter an enemy location"
     Exit Sub
 End If
@@ -275,8 +281,8 @@ End Sub
 
 Private Sub RenameButton_Click()
 
-Dim myFrom
-Dim myTo
+Dim myFrom As String
+Dim myTo As String
 
 On Error GoTo errortrap
 

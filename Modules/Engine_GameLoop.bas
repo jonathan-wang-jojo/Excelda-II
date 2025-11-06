@@ -62,98 +62,112 @@ End Function
 Private Function GetGameWorksheet() As Worksheet
     Dim sheetName As String
     sheetName = GetActiveSheetName()
-    
-    If Not SheetExists(sheetName) Then
-        Err.Raise vbObjectError + 201, "GameLoop.GetGameWorksheet", _
-                  "Game sheet '" & sheetName & "' not found."
-    End If
-    
+
+    On Error Resume Next
     Set GetGameWorksheet = Sheets(sheetName)
+    On Error GoTo 0
+
+    If GetGameWorksheet Is Nothing Then
+        Err.Raise vbObjectError + 301, "GetGameWorksheet", _
+            "Game worksheet '" & sheetName & "' was not found."
+    End If
 End Function
 
-Public Sub ResetGame(Optional ByVal startCell As String = "")
+Private Sub ResetGame(Optional ByVal startCell As String = "")
+1   On Error GoTo ResetError
+
+2   Dim prevUpdating As Boolean
+3   prevUpdating = Application.ScreenUpdating
+4   Application.ScreenUpdating = False
+
+5   InitializeManagers
+
+6   Dim registry As GameRegistry
+    On Error Resume Next
+7   Set registry = GameRegistryInstance()
+    If Err.Number <> 0 Then
+        MsgBox "Failed to create GameRegistry: " & Err.Description & " (Error " & Err.Number & ")", vbCritical
+        On Error GoTo ResetError
+    End If
     On Error GoTo ResetError
     
-    Dim wsGame As Worksheet
-    Dim gameConfig As IGameConfig
-    Set wsGame = GetGameWorksheet()
-    
-    Dim startAddress As String
-    startAddress = Trim$(startCell)
-    
-    ' If no start cell provided, get from game config
-    If startAddress = "" Then
-        Set gameConfig = GameRegistryInstance().GetConfigBySheet(wsGame.Name)
-        
-        If Not gameConfig Is Nothing Then
-            startAddress = gameConfig.StartCell
-        Else
-            ' Ultimate fallback if no config found
-            startAddress = "A1"
-        End If
-    End If
-    
-    Dim prevUpdating As Boolean
-    prevUpdating = Application.ScreenUpdating
-    Application.ScreenUpdating = False
-    
-    StopGameLoop (m_CustomGameSheet = "")
-    m_IsRunning = False
-    m_MoveBlocked = False
-    m_PostStopActivationSheet = ""
-
-    wsGame.Activate
-
-    ResetAllManagers
-    InitializeManagers
-    ApplySpriteDefinitionsForSheet wsGame
-
-    Dim spriteName As String
-    spriteName = FindPlayerSprite(wsGame.Name)
-    If spriteName = "" Then
-        Err.Raise vbObjectError + 302, "ResetGame", "Player sprite not found on sheet " & wsGame.Name
+    If registry Is Nothing Then
+        Err.Raise vbObjectError + 999, "ResetGame", "GameRegistryInstance returned Nothing"
     End If
 
-    m_SpriteManager.BindPlayerSprite wsGame.Name, spriteName
-    m_SpriteManager.UpdateVisibility
-    m_ActionManager.Initialize
-    m_EnemyManager.Initialize
-    m_SceneManager.ActivateSceneBySheet wsGame.Name
+8   Dim wsGame As Worksheet
+9   Set wsGame = GetGameWorksheet()
+10  wsGame.Activate
 
-    m_GameState.RefreshFromDataSheet
-    ApplySheetSpecificTuning wsGame
-    m_GameState.CurrentScreen = wsGame.Name
-    m_GameState.MoveDir = ""
-    m_GameState.IsFalling = False
-
-    m_PendingStartCell = startAddress
-    ApplyPendingStartState
-    m_SpriteManager.ResyncFramePositions
-
-    ' Load and apply game configuration from registry
-    Dim registry As GameRegistry
-    Set registry = GameRegistryInstance()
+    ' Load game config and apply settings
+11  Dim gameConfig As IGameConfig
+12  Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
     
-    Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
-    
-    If Not gameConfig Is Nothing Then
-        ' Apply game-specific configuration to engine
-        registry.ApplyConfig gameConfig
+    If gameConfig Is Nothing Then
+        Err.Raise vbObjectError + 998, "ResetGame", _
+            "No game config found for sheet: " & wsGame.Name
     End If
     
-    Dim viewport As ViewportManager
-    Set viewport = ViewportManagerInstance()
-    viewport.AlignToPlayer
-    viewport.RefreshVisibleDimensions
+    ' Initialize DataCache (pass sheet name to avoid ActiveSheet dependency)
+13  Dim dataSheet As Worksheet
+14  Set dataSheet = registry.GetGameDataSheet(wsGame.Name)
+15  If Not dataSheet Is Nothing Then
+16      DataCacheInstance().Initialize dataSheet
+17  Else
+        ' DataCache needs a sheet even if it's empty/minimal
+        MsgBox "Warning: No data sheet found for " & wsGame.Name & vbCrLf & _
+               "Config specifies: " & gameConfig.DataSheetName, vbExclamation
+    End If
 
-    Application.ScreenUpdating = prevUpdating
-    Exit Sub
+18  ApplySpriteDefinitionsForSheet wsGame
+
+19  Dim startAddress As String
+20  startAddress = Trim$(startCell)
+21  If startAddress = vbNullString And Not gameConfig Is Nothing Then
+22      startAddress = Trim$(gameConfig.StartCell)
+23  End If
+24  If startAddress = vbNullString Then
+25      startAddress = wsGame.Cells(1, 1).Address(False, False)
+26  End If
+
+27  Dim spriteName As String
+28  spriteName = FindPlayerSprite(wsGame.Name)
+29  If spriteName = vbNullString Then
+30      Err.Raise vbObjectError + 302, "ResetGame", _
+            "Player sprite not found on sheet " & wsGame.Name
+31  End If
+
+32  m_SpriteManager.BindPlayerSprite wsGame.Name, spriteName
+33  m_SpriteManager.UpdateVisibility
+34  m_ActionManager.Initialize
+35  m_EnemyManager.Initialize
+36  m_SceneManager.ActivateSceneBySheet wsGame.Name
+
+37  m_GameState.RefreshFromDataSheet
+38  ApplySheetSpecificTuning wsGame
+39  m_GameState.CurrentScreen = wsGame.Name
+40  m_GameState.MoveDir = vbNullString
+41  m_GameState.IsFalling = False
+
+42  m_PendingStartCell = startAddress
+43  ApplyPendingStartState
+44  m_SpriteManager.ResyncFramePositions
+
+45  If Not gameConfig Is Nothing Then
+46      registry.ApplyConfig gameConfig
+47  End If
+
+48  AlignViewport
+
+49  Application.ScreenUpdating = prevUpdating
+50  Exit Sub
 
 ResetError:
     Application.ScreenUpdating = prevUpdating
-    MsgBox "Reset Error: " & Err.Description, vbCritical, "Reset Game"
-
-    Exit Sub
+    MsgBox "Reset Error: " & Err.Description & vbCrLf & _
+           "Error Number: " & Err.Number & vbCrLf & _
+           "Source: " & Err.Source & vbCrLf & _
+           "Line: " & Erl, vbCritical, "Reset Game"
 End Sub
 
 Private Sub StartGame()
@@ -162,13 +176,23 @@ Private Sub StartGame()
     ResetAllManagers
     InitializeManagers
     
-    ' Initialize DataCache from Data sheet (Phase 1 optimization)
-    DataCacheInstance.Initialize GameRegistryInstance().GetGameDataSheet()
+    Dim registry As GameRegistry
+    Set registry = GameRegistryInstance()
     
     Dim wsGame As Worksheet
     Set wsGame = GetGameWorksheet()
     wsGame.Activate
     
+    ' Initialize DataCache from Data sheet (pass sheet name to avoid ActiveSheet dependency)
+    DataCacheInstance().Initialize registry.GetGameDataSheet(wsGame.Name)
+
+    ' Load and apply game configuration
+    Dim gameConfig As IGameConfig
+    Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
+    If Not gameConfig Is Nothing Then
+        registry.ApplyConfig gameConfig
+    End If
+
     ApplySpriteDefinitionsForSheet wsGame
 
     Dim screen As String
@@ -180,17 +204,17 @@ Private Sub StartGame()
     DisableExcelNavigation
     Application.ScreenUpdating = True
     
-    Dim dataSheet As Worksheet
-    Set dataSheet = GameRegistryInstance().GetGameDataSheet()
-    
+    ' Set initial direction if none exists
     Dim direction As String
-    direction = DataCacheInstance.GetValue(RANGE_MOVE_DIR)
-    If direction = "" Then direction = "D"
-    DataCacheInstance.SetValue RANGE_MOVE_DIR, direction
+    direction = DataCacheInstance().GetValue(RANGE_MOVE_DIR)
+    If direction = vbNullString Then
+        direction = "D"
+        DataCacheInstance().SetValue RANGE_MOVE_DIR, direction
+    End If
     
     Dim spriteName As String
     spriteName = FindPlayerSprite(screen)
-    If spriteName = "" Then Err.Raise vbObjectError + 1, "StartGame", "Player sprite not found"
+    If spriteName = vbNullString Then Err.Raise vbObjectError + 1, "StartGame", "Player sprite not found"
     
     m_SpriteManager.BindPlayerSprite screen, spriteName
     m_SpriteManager.UpdateVisibility
@@ -202,33 +226,39 @@ Private Sub StartGame()
     m_GameState.MoveDir = direction
     m_SpriteManager.ResyncFramePositions
     
-    m_GameState.PlayerCellAddress = m_SpriteManager.PlayerSprite.TopLeftCell.Address
-    DataCacheInstance.SetValue RANGE_CURRENT_CELL, m_GameState.PlayerCellAddress
-
-    If m_PendingStartCell <> "" Then
+    ' Apply pending start location BEFORE reading sprite position
+    ' This ensures spawn location takes priority over sprite's physical Excel position
+    If m_PendingStartCell <> vbNullString Then
         ApplyPendingStartState
         m_SpriteManager.ResyncFramePositions
+    Else
+        ' Only read sprite position if no pending start (Continue mode)
+        m_GameState.PlayerCellAddress = m_SpriteManager.PlayerSprite.TopLeftCell.Address
+        DataCacheInstance().SetValue RANGE_CURRENT_CELL, m_GameState.PlayerCellAddress
     End If
     
     AlignViewport
     On Error Resume Next
-    CalculateScreenLocation "", ""
+    CalculateScreenLocation vbNullString, vbNullString
     Dim initialScreenCode As String
     initialScreenCode = m_GameState.CurrentScreenCode
-    If initialScreenCode = "" Then initialScreenCode = m_GameState.CurrentScreen
-    If initialScreenCode <> "" Then
+    If initialScreenCode = vbNullString Then initialScreenCode = m_GameState.CurrentScreen
+    If initialScreenCode <> vbNullString Then
         m_SceneManager.ApplyScreen initialScreenCode
     End If
     On Error GoTo ErrorHandler
     Application.ScreenUpdating = False
     m_IsRunning = True
-    m_PostStopActivationSheet = ""
+    m_PostStopActivationSheet = vbNullString
     
     Exit Sub
     
 ErrorHandler:
     Cleanup
-    MsgBox "Start Error: " & Err.Description, vbCritical
+    MsgBox "Start Error: " & Err.Description & vbCrLf & _
+           "Error Number: " & Err.Number & vbCrLf & _
+           "Source: " & Err.Source & vbCrLf & _
+           "Line: " & Erl, vbCritical, "Start Game"
     If SheetExists(SHEET_TITLE) Then Sheets(SHEET_TITLE).Activate
 End Sub
 
@@ -311,9 +341,9 @@ Private Sub FixedUpdate(ByVal deltaTime As Double)
     ' Update frame timing
     m_GameState.BeginFrame deltaTime
     
-    ' Refresh state from data sheet
-    m_GameState.RefreshFromDataSheet
-    ApplySheetSpecificTuning
+    ' NOTE: RefreshFromDataSheet removed from hot loop (was reading C19/C4 60x/sec)
+    ' Speed/timing config now set once at game start via ApplySheetSpecificTuning
+    ' If dynamic speed changes needed, use m_GameState.MoveSpeed property directly
     
     ' Decrement timers
     If m_GameState.ScreenSetUpTimer > 0 Then
@@ -342,7 +372,7 @@ Private Sub Render(ByVal alpha As Double)
     On Error Resume Next
     m_SpriteManager.RenderInterpolated alpha
     ' Apply all queued shape updates in single batch
-    BatchRendererInstance.ApplyBatch
+    BatchRendererInstance().ApplyBatch
     On Error GoTo 0
 End Sub
 
@@ -371,7 +401,7 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
 
     If m_SpriteManager.PlayerSprite Is Nothing Then
         releaseTimer = 0#
-        bufferedDir = ""
+        bufferedDir = vbNullString
     End If
     
     Dim moveUp As Boolean, moveDown As Boolean, moveLeft As Boolean, moveRight As Boolean
@@ -390,7 +420,7 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
     End If
     
     Dim newDir As String
-    newDir = ""
+    newDir = vbNullString
     If moveUp Then newDir = newDir & "U"
     If moveDown Then newDir = newDir & "D"
     If moveLeft Then newDir = newDir & "L"
@@ -399,72 +429,45 @@ Private Sub HandleInput(ByVal deltaSeconds As Double)
     Dim attemptedDir As String
     attemptedDir = newDir
 
-    If attemptedDir <> "" Then
+    If attemptedDir <> vbNullString Then
         releaseTimer = INPUT_BUFFER_SECONDS
         bufferedDir = attemptedDir
     Else
         If releaseTimer > 0# Then
             releaseTimer = releaseTimer - deltaSeconds
-            If releaseTimer > 0# And bufferedDir <> "" Then
+            If releaseTimer > 0# And bufferedDir <> vbNullString Then
                 attemptedDir = bufferedDir
             Else
-                bufferedDir = ""
+                bufferedDir = vbNullString
                 releaseTimer = 0#
             End If
         Else
-            bufferedDir = ""
+            bufferedDir = vbNullString
         End If
     End If
     
     Dim blocked As Boolean
     blocked = False
-    If attemptedDir <> "" And Not currentCell Is Nothing Then
+    If attemptedDir <> vbNullString And Not currentCell Is Nothing Then
         blocked = DirectionBlocked(attemptedDir, currentCell)
     End If
 
-    m_MoveBlocked = (attemptedDir <> "" And blocked)
+    m_MoveBlocked = (attemptedDir <> vbNullString And blocked)
     
-    DataCacheInstance.SetValue RANGE_MOVE_DIR, attemptedDir
+    DataCacheInstance().SetValue RANGE_MOVE_DIR, attemptedDir
     m_GameState.MoveDir = attemptedDir
 
     ' Update action key states (generic)
     m_ActionManager.UpdateKeys
     
-    ' Process Link-specific actions
-    ProcessLinkActions
-End Sub
-
-'===================================================================================
-'                        LINK-SPECIFIC ACTION PROCESSING
-'===================================================================================
-Private Sub ProcessLinkActions()
-    ' Handle C key action
-    If m_ActionManager.CKeyPressed Then
-        Select Case m_ActionManager.CItem
-            Case "Sword"
-                swordSwipe 1, m_ActionManager.CKeyHoldFrames
-            Case "Shield"
-                showShield
-        End Select
-    ElseIf m_ActionManager.CKeyJustReleased Then
-        ' Sword spin on release after long hold
-        If m_ActionManager.CItem = "Sword" And m_ActionManager.CKeyHoldFrames >= 20 Then
-            swordSpin
-        End If
-    End If
-    
-    ' Handle D key action
-    If m_ActionManager.DKeyPressed Then
-        Select Case m_ActionManager.DItem
-            Case "Sword"
-                swordSwipe 2, m_ActionManager.DKeyHoldFrames
-            Case "Shield"
-                showShield
-        End Select
-    ElseIf m_ActionManager.DKeyJustReleased Then
-        ' Sword spin on release after long hold
-        If m_ActionManager.DItem = "Sword" And m_ActionManager.DKeyHoldFrames >= 20 Then
-            swordSpin
+    ' Dispatch to game-specific action handlers
+    Dim gameConfig As IGameConfig
+    Set gameConfig = GameRegistryInstance().GetConfigBySheet(m_GameState.CurrentScreen)
+    If Not gameConfig Is Nothing Then
+        ' Each game config can implement action handling in its lifecycle hooks
+        ' For now, Link game uses its own module
+        If m_GameState.CurrentScreen = "Game1" Then
+            Game_LinkActions.ProcessLinkActions m_ActionManager
         End If
     End If
 End Sub
@@ -474,10 +477,10 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     movementDir = m_GameState.MoveDir
     
     Dim facingDir As String
-    facingDir = IIf(movementDir = "", m_GameState.LastDir, movementDir)
+    facingDir = IIf(movementDir = vbNullString, m_GameState.LastDir, movementDir)
 
     Dim effectiveDir As String
-    effectiveDir = IIf(m_MoveBlocked, "", movementDir)
+    effectiveDir = IIf(m_MoveBlocked, vbNullString, movementDir)
     
     m_SpriteManager.UpdateFrame effectiveDir, facingDir, m_GameState.MoveSpeed, deltaSeconds
     m_SpriteManager.UpdatePosition
@@ -492,12 +495,12 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     Set linkCell = m_SpriteManager.PlayerSprite.TopLeftCell
     If Not linkCell Is Nothing Then
         m_GameState.PlayerCellAddress = linkCell.Address
-    DataCacheInstance.SetValue RANGE_CURRENT_CELL, m_GameState.PlayerCellAddress
+    DataCacheInstance().SetValue RANGE_CURRENT_CELL, m_GameState.PlayerCellAddress
     End If
     On Error GoTo 0
     
-    DataCacheInstance.SetValue RANGE_MOVE_DIR, ""
-    m_GameState.MoveDir = ""
+    ' NOTE: Do NOT clear MoveDir here - HandleInput manages direction lifecycle
+    ' Clearing here causes "blinking" movement (1 frame per key press instead of continuous)
     m_MoveBlocked = False
 End Sub
 
@@ -671,8 +674,8 @@ Private Sub ApplySpriteDefinitionsForSheet(ByVal ws As Worksheet)
     Set config = GameRegistryInstance().GetConfigBySheet(ws.Name)
     If Not config Is Nothing Then
         baseName = Trim$(config.PlayerSpriteBaseName)
-        If baseName = "" Then baseName = Trim$(config.PlayerSpriteName)
-        If baseName = "" Then baseName = "Player"
+        If baseName = vbNullString Then baseName = Trim$(config.PlayerSpriteName)
+        If baseName = vbNullString Then baseName = "Player"
     End If
 
     sm.DiscoverSpritesOnSheet ws, baseName
@@ -735,7 +738,7 @@ Private Sub HandleTriggers()
     Set triggerCell = mapSheet.Range(linkCell.Address).Offset(3, 2)
 
     code = Trim$(CStr(triggerCell.Value))
-    If code = "" Then Exit Sub
+    If code = vbNullString Then Exit Sub
     If UCase$(code) = "B" Then Exit Sub
     If StrComp(code, "TRIGGER", vbTextCompare) = 0 Then
         HandleEndScreenTrigger
@@ -744,7 +747,7 @@ Private Sub HandleTriggers()
     
     m_GameState.PlayerCellAddress = linkCell.Address
     m_GameState.CodeCell = code
-    DataCacheInstance.SetValue RANGE_CURRENT_CELL, m_GameState.PlayerCellAddress
+    DataCacheInstance().SetValue RANGE_CURRENT_CELL, m_GameState.PlayerCellAddress
     
     Dim scrollInd As String, scrollDir As String, fallInd As String, actionInd As String
     Dim enemyType As String, enemySlot As String, actionDir As String, actionCell As String
@@ -752,7 +755,7 @@ Private Sub HandleTriggers()
     ParseTriggerCode code, scrollInd, scrollDir, fallInd, actionInd, enemyType, enemySlot, actionDir, actionCell
     m_GameState.TriggerCellAddress = actionCell
 
-    If scrollInd = "S" And scrollDir <> "" Then
+    If scrollInd = "S" And scrollDir <> vbNullString Then
         ViewportManagerInstance().HandleScrollTransition scrollDir
         m_ActionManager.Initialize
         m_SpriteManager.UpdateVisibility
@@ -773,7 +776,7 @@ End Sub
 
 Private Sub HandleEndScreenTrigger()
     m_PostStopActivationSheet = "End Screen"
-    m_CustomGameSheet = ""
+    m_CustomGameSheet = vbNullString
     m_IsRunning = False
 End Sub
 
@@ -800,32 +803,67 @@ End Sub
 Private Sub ApplyPendingStartState()
     Dim pending As String
     pending = Trim$(m_PendingStartCell)
-    m_PendingStartCell = ""
-    If pending = "" Then Exit Sub
+    m_PendingStartCell = vbNullString
+    If pending = vbNullString Then Exit Sub
 
     Dim gs As GameState
     Set gs = GameStateInstance()
     If gs Is Nothing Then Exit Sub
 
-    On Error GoTo StartStateError
-    RelocateToSimpleLocation pending
-
-    ' Batch write to minimize COM calls
     Dim dataSheet As Worksheet
     Set dataSheet = GameRegistryInstance().GetGameDataSheet()
-    With dataSheet
-        .Range(RANGE_PREVIOUS_CELL).Value = gs.PlayerCellAddress
-        .Range(RANGE_PREVIOUS_SCROLL & ":" & RANGE_SHIELD_STATE).ClearContents
-        .Range(RANGE_FALLING).Value = "N"
-        .Range(RANGE_FALL_SEQUENCE).Value = "N"
-    End With
+
+    Dim cache As DataCache
+    Set cache = DataCacheInstance()
+
+    On Error GoTo StartStateError
+
+    ' Clear carried-over action assignments and overlays before relocating
+    If Not dataSheet Is Nothing Then
+        With dataSheet
+            .Range(RANGE_ACTION_C).Value = ""
+            .Range(RANGE_ACTION_D).Value = ""
+            .Range(RANGE_C_ITEM).Value = ""
+            .Range(RANGE_D_ITEM).Value = ""
+            .Range(RANGE_SHIELD_STATE).Value = ""
+        End With
+    End If
+
+    If Not cache Is Nothing Then
+        cache.SetValue RANGE_ACTION_C, ""
+        cache.SetValue RANGE_ACTION_D, ""
+        cache.SetValue RANGE_C_ITEM, ""
+        cache.SetValue RANGE_D_ITEM, ""
+        cache.SetValue RANGE_SHIELD_STATE, ""
+    End If
+
+    RelocateToSimpleLocation pending
+    
+    ' Apply batched sprite position changes immediately
+    BatchRendererInstance().ApplyBatch
+
+    ' Batch write to minimize COM calls
+    If dataSheet Is Nothing Then
+        Set dataSheet = GameRegistryInstance().GetGameDataSheet()
+    End If
+
+    If Not dataSheet Is Nothing Then
+        With dataSheet
+            .Range(RANGE_PREVIOUS_CELL).Value = gs.PlayerCellAddress
+            .Range(RANGE_PREVIOUS_SCROLL & ":" & RANGE_SHIELD_STATE).ClearContents
+            .Range(RANGE_FALLING).Value = "N"
+            .Range(RANGE_FALL_SEQUENCE).Value = "N"
+        End With
+    End If
 
     ' Keep cache in sync with initial spawn state to avoid legacy fall/bounce flags
-    DataCacheInstance.SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
-    DataCacheInstance.SetValue RANGE_PREVIOUS_SCROLL, ""
-    DataCacheInstance.SetValue RANGE_SHIELD_STATE, ""
-    DataCacheInstance.SetValue RANGE_FALLING, "N"
-    DataCacheInstance.SetValue RANGE_FALL_SEQUENCE, "N"
+    If Not cache Is Nothing Then
+        cache.SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
+        cache.SetValue RANGE_PREVIOUS_SCROLL, ""
+        cache.SetValue RANGE_SHIELD_STATE, ""
+        cache.SetValue RANGE_FALLING, "N"
+        cache.SetValue RANGE_FALL_SEQUENCE, "N"
+    End If
 
     gs.TriggerCellAddress = ""
     gs.CodeCell = ""
@@ -851,7 +889,7 @@ Sub Relocate(ByVal code As String)
     trimmedCode = Trim$(code)
     
     ' Simple relocation if not a scroll trigger
-    If trimmedCode = "" Or Mid$(trimmedCode, 1, 1) <> "S" Then
+    If trimmedCode = vbNullString Or Mid$(trimmedCode, 1, 1) <> "S" Then
         RelocateToSimpleLocation trimmedCode
         Exit Sub
     End If
@@ -865,16 +903,16 @@ Sub Relocate(ByVal code As String)
     Set dataSheet = GameRegistryInstance().GetGameDataSheet()
     
     ' Resolve action cell with fallback chain
-    If actionCell = "" Then actionCell = gs.TriggerCellAddress
-    If actionCell = "" Then actionCell = DataCacheInstance.GetValue(RANGE_CURRENT_CELL)
+    If actionCell = vbNullString Then actionCell = gs.TriggerCellAddress
+    If actionCell = vbNullString Then actionCell = DataCacheInstance().GetValue(RANGE_CURRENT_CELL)
 
-    If scrollIndicator <> "S" And actionCell = "" Then
+    If scrollIndicator <> "S" And actionCell = vbNullString Then
         RelocateToSimpleLocation trimmedCode
         Exit Sub
     End If
 
     ' Resolve target cell
-    If gs.CurrentScreen <> "" Then
+    If gs.CurrentScreen <> vbNullString Then
         On Error Resume Next
         Set mapSheet = Sheets(gs.CurrentScreen)
         On Error GoTo RelocateError
@@ -904,14 +942,14 @@ End Sub
 Private Sub RelocateToSimpleLocation(ByVal location As String)
     On Error GoTo RelocateSimpleError
     location = Trim$(location)
-    If location = "" Then Exit Sub
+    If location = vbNullString Then Exit Sub
 
     Dim gs As GameState
     Set gs = GameStateInstance()
     If gs Is Nothing Then Exit Sub
 
     Dim ws As Worksheet
-    If gs.CurrentScreen <> "" Then
+    If gs.CurrentScreen <> vbNullString Then
         On Error Resume Next
         Set ws = Sheets(gs.CurrentScreen)
         On Error GoTo RelocateSimpleError
@@ -939,8 +977,8 @@ Private Sub PerformRelocation(ByVal targetCell As Range, ByVal gs As GameState, 
     ' Update data sheet and state
     Dim dataSheet As Worksheet
     Set dataSheet = GameRegistryInstance().GetGameDataSheet()
-    DataCacheInstance.SetValue RANGE_CURRENT_CELL, gs.PlayerCellAddress
-    DataCacheInstance.SetValue RANGE_MOVE_DIR, ""
+    DataCacheInstance().SetValue RANGE_CURRENT_CELL, gs.PlayerCellAddress
+    DataCacheInstance().SetValue RANGE_MOVE_DIR, ""
     gs.MoveDir = ""
     gs.CodeCell = ""
 
@@ -958,8 +996,8 @@ Private Sub PerformRelocation(ByVal targetCell As Range, ByVal gs As GameState, 
     ' Apply screen setup
     Dim setupMacro As String
     setupMacro = gs.CurrentScreenCode
-    If setupMacro = "" Then setupMacro = gs.CurrentScreen
-    If setupMacro <> "" Then
+    If setupMacro = vbNullString Then setupMacro = gs.CurrentScreen
+    If setupMacro <> vbNullString Then
         On Error GoTo ScreenSetupError
         m_SceneManager.ApplyScreen setupMacro
         On Error GoTo 0
@@ -973,14 +1011,14 @@ End Sub
 Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet As Worksheet) As Range
     Dim trimmed As String
     trimmed = Trim$(location)
-    If trimmed = "" Then Exit Function
+    If trimmed = vbNullString Then Exit Function
 
     ' Parse sheet!address format
     Dim sheetPart As String, addressPart As String
     Dim bangPos As Long
     bangPos = InStr(trimmed, "!")
     If bangPos > 0 Then
-        sheetPart = Replace(Mid$(trimmed, 1, bangPos - 1), "'", "")
+        sheetPart = Replace(Mid$(trimmed, 1, bangPos - 1), "'", vbNullString)
         addressPart = Mid$(trimmed, bangPos + 1)
     Else
         addressPart = trimmed
@@ -988,26 +1026,26 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
 
     ' Resolve sheet
     Dim candidateSheet As Worksheet
-    If sheetPart <> "" Then
+    If sheetPart <> vbNullString Then
         On Error Resume Next
         Set candidateSheet = Sheets(sheetPart)
         On Error GoTo 0
     End If
     If candidateSheet Is Nothing Then Set candidateSheet = defaultSheet
 
-    ' Try legacy cell ID first (most common for game triggers)
-    Dim legacyId As String
-    legacyId = ExtractLegacyCellId(trimmed)
-    If legacyId <> "" Then
-        Set ResolveTargetCell = FindCellValueAcrossSheets(legacyId, candidateSheet)
-        If Not ResolveTargetCell Is Nothing Then Exit Function
-    End If
-
-    ' Try direct range address if applicable
+    ' Try direct range address FIRST (e.g., CO598, A1, B10)
     If ShouldAttemptDirectAddress(addressPart) And Not candidateSheet Is Nothing Then
         On Error Resume Next
         Set ResolveTargetCell = candidateSheet.Range(addressPart)
         On Error GoTo 0
+        If Not ResolveTargetCell Is Nothing Then Exit Function
+    End If
+
+    ' Fall back to legacy cell ID lookup (search for value in cells - e.g., trigger codes)
+    Dim legacyId As String
+    legacyId = ExtractLegacyCellId(trimmed)
+    If legacyId <> vbNullString Then
+        Set ResolveTargetCell = FindCellValueAcrossSheets(legacyId, candidateSheet)
         If Not ResolveTargetCell Is Nothing Then Exit Function
     End If
 
@@ -1016,7 +1054,7 @@ Private Function ResolveTargetCell(ByVal location As String, ByVal defaultSheet 
     If Not ResolveTargetCell Is Nothing Then Exit Function
 
     ' Final fallback: extract last 4 chars as potential ID
-    If legacyId = "" And Len(trimmed) > 4 Then
+    If legacyId = vbNullString And Len(trimmed) > 4 Then
         Dim fallbackId As String
         fallbackId = Mid$(trimmed, Len(trimmed) - 3)
         Set ResolveTargetCell = FindCellValueAcrossSheets(fallbackId, candidateSheet)
@@ -1038,7 +1076,7 @@ Private Function ExtractLegacyCellId(ByVal location As String) As String
     End If
 
     ' Validate first char is A-Z
-    If candidate <> "" Then
+    If candidate <> vbNullString Then
         Dim firstChar As String
         firstChar = Mid$(candidate, 1, 1)
         If firstChar >= "A" And firstChar <= "Z" Then
@@ -1049,7 +1087,7 @@ End Function
 
 Private Function ShouldAttemptDirectAddress(ByVal addressPart As String) As Boolean
     ' Check if address looks like a cell reference (e.g., A1, B10) vs code ID (e.g., X014)
-    If addressPart = "" Then Exit Function
+    If addressPart = vbNullString Then Exit Function
 
     ' Find first digit position
     Dim idx As Long, ch As String, firstDigit As Long
@@ -1070,12 +1108,14 @@ End Function
 
 Private Function FindCellValueAcrossSheets(ByVal lookupValue As String, ByVal preferredSheet As Worksheet) As Range
     Dim match As Range
-    If lookupValue = "" Then Exit Function
+    If lookupValue = vbNullString Then Exit Function
 
-    Set match = FindInWorksheet(preferredSheet, lookupValue)
-    If Not match Is Nothing Then
-        Set FindCellValueAcrossSheets = match
-        Exit Function
+    If Not preferredSheet Is Nothing Then
+        Set match = FindInWorksheet(preferredSheet, lookupValue)
+        If Not match Is Nothing Then
+            Set FindCellValueAcrossSheets = match
+            Exit Function
+        End If
     End If
 
     Dim ws As Worksheet
@@ -1092,6 +1132,7 @@ End Function
 
 Private Function FindInWorksheet(ByVal ws As Worksheet, ByVal lookupValue As String) As Range
     If ws Is Nothing Then Exit Function
+
     On Error Resume Next
     Set FindInWorksheet = ws.Cells.Find(What:=lookupValue, After:=ws.Cells(1, 1), LookIn:=xlValues, _
         LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=True)
@@ -1126,7 +1167,7 @@ Private Sub ParseTriggerCode(ByVal rawCode As String, _
         actionCell = Trim$(Mid$(payload, 14))
     End If
 
-    If actionCell = "" Then
+    If actionCell = vbNullString Then
         Dim actionPos As Long
         actionPos = InStr(payload, actionIndicator)
         If actionPos > 0 Then
@@ -1205,9 +1246,9 @@ Private Sub StopGameLoop(Optional ByVal clearCustomSheet As Boolean = True)
     On Error Resume Next
     m_IsRunning = False
     
-    ' Flush DataCache before destroying managers (Phase 1 optimization)
-    If DataCacheInstance.IsDirty Then
-        DataCacheInstance.Flush GameRegistryInstance().GetGameDataSheet()
+    ' Flush DataCache before destroying managers
+    If DataCacheInstance().IsDirty Then
+        DataCacheInstance().Flush GameRegistryInstance().GetGameDataSheet()
     End If
     
     DestroyAllManagers

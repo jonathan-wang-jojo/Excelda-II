@@ -434,9 +434,17 @@ Private Function ParseSpriteFrameName(ByVal shapeName As String, ByVal baseName 
         Exit Function
     End If
     
-    ' Extract suffix after base name
+    ' Exclude overlay sprites from discovery (shields, jumps, falls, win, shadow, heart, sword)
+    ' These are managed separately by game logic, not the animation system
     Dim suffix As String
     suffix = Mid$(shapeName, Len(baseName) + 1)
+    If InStr(1, suffix, "Shield", vbTextCompare) > 0 Then Exit Function
+    If InStr(1, suffix, "Jump", vbTextCompare) > 0 Then Exit Function
+    If InStr(1, suffix, "Fall", vbTextCompare) > 0 Then Exit Function
+    If InStr(1, suffix, "Win", vbTextCompare) > 0 Then Exit Function
+    If InStr(1, suffix, "Shadow", vbTextCompare) > 0 Then Exit Function
+    If InStr(1, suffix, "Heart", vbTextCompare) > 0 Then Exit Function
+    If InStr(1, suffix, "Sword", vbTextCompare) > 0 Then Exit Function
     
     ' If empty suffix, it's a single omnidirectional sprite
     If suffix = "" Then
@@ -937,7 +945,7 @@ Public Sub UpdatePosition()
     
     Dim ws As Worksheet
     Set ws = m_Sprite.PlayerSprite.Parent
-    BatchRendererInstance.QueuePosition ws, m_Sprite.PlayerSprite.Name, m_Sprite.Top, m_Sprite.Left
+    BatchRendererInstance().QueuePosition ws, m_Sprite.PlayerSprite.Name, m_Sprite.Top, m_Sprite.Left
     SyncAllPlayerFrames
     On Error GoTo 0
 End Sub
@@ -959,7 +967,7 @@ Public Sub RenderInterpolated(ByVal alpha As Double)
 
     Dim ws As Worksheet
     Set ws = m_Sprite.PlayerSprite.Parent
-    BatchRendererInstance.QueuePosition ws, m_Sprite.PlayerSprite.Name, interpTop, interpLeft
+    BatchRendererInstance().QueuePosition ws, m_Sprite.PlayerSprite.Name, interpTop, interpLeft
     SyncAllPlayerFrames
     On Error GoTo 0
 End Sub
@@ -1085,7 +1093,7 @@ Public Sub ApplyPlayerBounce(ByVal bounceSpeed As Long)
     
     m_Sprite.Top = newTop
     m_Sprite.Left = newLeft
-    BatchRendererInstance.QueuePosition playerShape.Parent, playerShape.Name, newTop, newLeft
+    BatchRendererInstance().QueuePosition playerShape.Parent, playerShape.Name, newTop, newLeft
     SyncAllPlayerFrames
     On Error GoTo 0
 End Sub
@@ -1105,7 +1113,7 @@ Public Sub AlignSprites(ByVal leftPos As Double, ByVal topPos As Double)
         Dim frameShape As Shape
         Set frameShape = ShapeIfExists(wsGame, CStr(frameName))
         If Not frameShape Is Nothing Then
-            BatchRendererInstance.QueuePosition wsGame, CStr(frameName), topPos, leftPos
+            BatchRendererInstance().QueuePosition wsGame, CStr(frameName), topPos, leftPos
         End If
     Next frameName
 
@@ -1136,7 +1144,7 @@ Private Sub SyncAllPlayerFrames()
         Dim frameShape As Shape
         Set frameShape = ShapeIfExists(wsGame, CStr(frameName))
         If Not frameShape Is Nothing Then
-            BatchRendererInstance.QueuePosition wsGame, CStr(frameName), m_Sprite.Top, m_Sprite.Left
+            BatchRendererInstance().QueuePosition wsGame, CStr(frameName), m_Sprite.Top, m_Sprite.Left
         End If
     Next frameName
     UpdateLightOverlay m_Sprite.PlayerSprite
@@ -1263,8 +1271,8 @@ Private Sub UpdateLightOverlay(Optional ByVal referenceShape As Shape)
     lightTop = centerTop - (light.Height / 2#)
     lightLeft = centerLeft - (light.Width / 2#)
     
-    BatchRendererInstance.QueuePosition light.Parent, light.Name, lightTop, lightLeft
-    BatchRendererInstance.QueueVisibility light.Parent, light.Name, True
+    BatchRendererInstance().QueuePosition light.Parent, light.Name, lightTop, lightLeft
+    BatchRendererInstance().QueueVisibility light.Parent, light.Name, True
     light.Rotation = 0
     light.ZOrder msoBringToFront
 

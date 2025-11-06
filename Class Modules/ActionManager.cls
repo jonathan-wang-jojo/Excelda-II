@@ -148,7 +148,7 @@ End Sub
 ' Call this only when items change (e.g., after pickup), not every frame.
 Public Sub SyncItemsFromCache()
     On Error Resume Next
-    m_Action.CItem = DataCacheInstance.GetValue(RANGE_C_ITEM)
-    m_Action.DItem = DataCacheInstance.GetValue(RANGE_D_ITEM)
+    m_Action.CItem = DataCacheInstance().GetValue(RANGE_C_ITEM)
+    m_Action.DItem = DataCacheInstance().GetValue(RANGE_D_ITEM)
     On Error GoTo 0
 End Sub

@@ -241,7 +241,7 @@ Private Sub MoveEnemy(ByVal slotIndex As Long, ByVal moveDirection As String, By
             End If
     End Select
     
-    BatchRendererInstance.QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
+    BatchRendererInstance().QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
 End Sub
 
 '===================================================================================
@@ -277,7 +277,7 @@ Private Sub CheckCollision(ByVal slotIndex As Long, ByVal linkSprite As Object)
     End If
     
     If sideOverlap And verticalOverlap Then
-        If DataCacheInstance.GetValue(RANGE_SHIELD_STATE) = "Y" Then
+        If DataCacheInstance().GetValue(RANGE_SHIELD_STATE) = "Y" Then
             PushEnemy slotIndex
         Else
             ' TODO: Implement Link damage/bounceback handling in new engine layer
@@ -345,7 +345,7 @@ Private Sub ApplyBounceBack(ByVal slotIndex As Long)
             newLeft = newLeft + 15
     End Select
     
-    BatchRendererInstance.QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
+    BatchRendererInstance().QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
 End Sub
 
 Private Sub PushEnemy(ByVal slotIndex As Long)
@@ -363,7 +363,7 @@ Private Sub PushEnemy(ByVal slotIndex As Long)
     Set dataSheet = GameRegistryInstance().GetGameDataSheet()
     
     Dim pushDirection As String
-    pushDirection = DataCacheInstance.GetValue(RANGE_MOVE_DIR)
+    pushDirection = DataCacheInstance().GetValue(RANGE_MOVE_DIR)
     
     Dim newTop As Double
     Dim newLeft As Double
@@ -381,7 +381,7 @@ Private Sub PushEnemy(ByVal slotIndex As Long)
             newLeft = newLeft + 5
     End Select
     
-    BatchRendererInstance.QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
+    BatchRendererInstance().QueuePosition sprite.Parent, sprite.Name, newTop, newLeft
 End Sub
 
 Private Sub KillEnemy(ByVal slotIndex As Long)
@@ -402,11 +402,11 @@ Private Sub KillEnemy(ByVal slotIndex As Long)
     
     ' Show explosion animation (batch queue)
     With ActiveSheet
-        BatchRendererInstance.QueuePosition ActiveSheet, "Explosion1", explosionTop, explosionLeft
-        BatchRendererInstance.QueuePosition ActiveSheet, "Explosion2", explosionTop, explosionLeft
-        BatchRendererInstance.QueuePosition ActiveSheet, "Explosion3", explosionTop - 5, explosionLeft - 5
+        BatchRendererInstance().QueuePosition ActiveSheet, "Explosion1", explosionTop, explosionLeft
+        BatchRendererInstance().QueuePosition ActiveSheet, "Explosion2", explosionTop, explosionLeft
+        BatchRendererInstance().QueuePosition ActiveSheet, "Explosion3", explosionTop - 5, explosionLeft - 5
         
-        BatchRendererInstance.QueueVisibility ActiveSheet, "Explosion1", True
+        BatchRendererInstance().QueueVisibility ActiveSheet, "Explosion1", True
         Range("A1").Copy Range("A2")
         Sleep 8
         

@@ -111,7 +111,7 @@ Public Sub ApplyScreenLayout(ByVal screenCode As String)
 End Sub
 
 Private Function NormalizeScreenCode(ByVal screenCode As String) As String
-    NormalizeScreenCode = UCase(Trim(screenCode))
+    NormalizeScreenCode = UCase$(Trim$(screenCode))
 End Function
 
 Private Function GetObjectManager() As ObjectManager

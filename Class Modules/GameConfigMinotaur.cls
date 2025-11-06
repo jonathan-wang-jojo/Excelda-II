@@ -21,7 +21,7 @@ Private Property Get IGameConfig_GameVersion() As String
 End Property
 
 Private Property Get IGameConfig_SheetName() As String
-    IGameConfig_SheetName = "Sheet9"
+    IGameConfig_SheetName = "Maze"  ' Excel visible sheet name, not VBA object name (Sheet9)
 End Property
 
 Private Property Get IGameConfig_DataSheetName() As String
@@ -32,15 +32,15 @@ End Property
 ' IGameConfig Implementation - Player Configuration
 '──────────────────────────────────────────────────────────────────────────────
 Private Property Get IGameConfig_PlayerSpriteName() As String
-    IGameConfig_PlayerSpriteName = "Player"  ' Or could be "Link" if using same sprite
-End Property
-
-Private Property Get IGameConfig_PlayerSpeed() As Double
-    IGameConfig_PlayerSpeed = 2.5#  ' Slower speed for boss battle feel
+    IGameConfig_PlayerSpriteName = "Minotaur"
 End Property
 
 Private Property Get IGameConfig_PlayerSpriteBaseName() As String
-    IGameConfig_PlayerSpriteBaseName = "Player"
+    IGameConfig_PlayerSpriteBaseName = "Minotaur"
+End Property
+
+Private Property Get IGameConfig_PlayerSpeed() As Double
+    IGameConfig_PlayerSpeed = 2.5#
 End Property
 
 Private Property Get IGameConfig_StartCell() As String
@@ -90,20 +90,13 @@ End Property
 ' IGameConfig Implementation - Lifecycle Hooks
 '──────────────────────────────────────────────────────────────────────────────
 Private Sub IGameConfig_OnGameInitialize()
-    ' Minotaur-specific initialization
-    ' Apply custom sprite configuration (handles non-standard naming)
-    On Error Resume Next
-    Dim ws As Worksheet
-    Set ws = Sheets(IGameConfig_SheetName)
-    If Not ws Is Nothing Then
-        ' Call sheet-specific sprite config if it exists
-        ws.ApplyMinotaurSpriteConfig
-    End If
-    On Error GoTo 0
+    ' Minotaur-specific initialization can be added here if needed
+    ' NOTE: Called during ResetGame/ApplyConfig - managers may not be fully initialized yet
+    ' Keep this minimal or move complex logic to OnGameStart
 End Sub
 
 Private Sub IGameConfig_OnGameStart()
-    ' Called when Minotaur Battle starts
+    ' Called when Minotaur Battle starts (after all managers initialized)
     ' e.g., Spawn minotaur, start boss music
 End Sub
 
