@@ -108,16 +108,7 @@ End Function
 '------------------------------- GameRegistry -------------------------------
 Public Function GameRegistryInstance() As GameRegistry
     If m_GameRegistry Is Nothing Then
-        On Error Resume Next
         Set m_GameRegistry = New GameRegistry
-        If Err.Number <> 0 Then
-            MsgBox "CRITICAL: Failed to create GameRegistry singleton: " & Err.Description & " (Error " & Err.Number & ")" & vbCrLf & _
-                   "This likely means GameConfigLink or GameConfigMinotaur failed to initialize.", vbCritical, "Singleton Creation Error"
-            Err.Clear
-            On Error GoTo 0
-            Exit Function
-        End If
-        On Error GoTo 0
     End If
     Set GameRegistryInstance = m_GameRegistry
 End Function

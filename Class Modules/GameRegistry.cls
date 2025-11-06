@@ -82,35 +82,8 @@ Public Function GetConfigBySheet(ByVal sheetName As String) As IGameConfig
     Dim sheetKey As String
     sheetKey = UCase$(Trim$(sheetName))
     
-    Debug.Print "GetConfigBySheet looking for: '" & sheetName & "' (Key: '" & sheetKey & "') - Collection has " & m_Configs.Count & " items"
-    
-    ' List all registered configs for debugging
-    If m_Configs.Count > 0 Then
-        Dim i As Long
-        Dim cfg As IGameConfig
-        Debug.Print "  Available configs:"
-        For i = 1 To m_Configs.Count
-            On Error Resume Next
-            Set cfg = m_Configs(i)
-            If Not cfg Is Nothing Then
-                Debug.Print "    [" & i & "] " & cfg.GameName & " - SheetName: '" & cfg.SheetName & "' (Key: '" & UCase$(Trim$(cfg.SheetName)) & "')"
-            Else
-                Debug.Print "    [" & i & "] (Nothing)"
-            End If
-            On Error GoTo 0
-        Next i
-    End If
-    
     On Error Resume Next
     Set GetConfigBySheet = m_Configs(sheetKey)
-    If Err.Number <> 0 Then
-        Debug.Print "  -> NOT FOUND (Error " & Err.Number & ": " & Err.Description & ")"
-        Err.Clear
-    ElseIf GetConfigBySheet Is Nothing Then
-        Debug.Print "  -> Found but object is Nothing"
-    Else
-        Debug.Print "  -> FOUND: " & GetConfigBySheet.GameName
-    End If
     On Error GoTo 0
 End Function
 
@@ -253,36 +226,7 @@ End Function
 '                              PRIVATE HELPERS
 '===================================================================================
 Private Sub RegisterDefaultGames()
-    ' Register built-in games
-    ' New games can be registered externally via RegisterGame()
-    
-    On Error Resume Next
-    Dim linkConfig As GameConfigLink
-    Set linkConfig = New GameConfigLink
-    If Err.Number <> 0 Then
-        MsgBox "Failed to create GameConfigLink: " & Err.Description & " (Error " & Err.Number & ")", vbCritical
-        Err.Clear
-        Exit Sub
-    End If
-    
-    Dim linkInterface As IGameConfig
-    Set linkInterface = linkConfig
-    Debug.Print "Registering Link config - SheetName: '" & linkInterface.SheetName & "' (Key: '" & UCase$(Trim$(linkInterface.SheetName)) & "')"
-    RegisterGame linkConfig
-    
-    Dim minotaurConfig As GameConfigMinotaur
-    Set minotaurConfig = New GameConfigMinotaur
-    If Err.Number <> 0 Then
-        MsgBox "Failed to create GameConfigMinotaur: " & Err.Description & " (Error " & Err.Number & ")", vbCritical
-        Err.Clear
-        Exit Sub
-    End If
-    
-    Dim minotaurInterface As IGameConfig
-    Set minotaurInterface = minotaurConfig
-    Debug.Print "Registering Minotaur config - SheetName: '" & minotaurInterface.SheetName & "' (Key: '" & UCase$(Trim$(minotaurInterface.SheetName)) & "')"
-    RegisterGame minotaurConfig
-    
-    Debug.Print "Registry now has " & m_Configs.Count & " configs registered"
-    On Error GoTo 0
+    ' Register built-in games (others can be registered externally)
+    RegisterGame New GameConfigLink
+    RegisterGame New GameConfigMinotaur
 End Sub

@@ -83,17 +83,7 @@ Private Sub ResetGame(Optional ByVal startCell As String = "")
 5   InitializeManagers
 
 6   Dim registry As GameRegistry
-    On Error Resume Next
 7   Set registry = GameRegistryInstance()
-    If Err.Number <> 0 Then
-        MsgBox "Failed to create GameRegistry: " & Err.Description & " (Error " & Err.Number & ")", vbCritical
-        On Error GoTo ResetError
-    End If
-    On Error GoTo ResetError
-    
-    If registry Is Nothing Then
-        Err.Raise vbObjectError + 999, "ResetGame", "GameRegistryInstance returned Nothing"
-    End If
 
 8   Dim wsGame As Worksheet
 9   Set wsGame = GetGameWorksheet()
@@ -103,20 +93,11 @@ Private Sub ResetGame(Optional ByVal startCell As String = "")
 11  Dim gameConfig As IGameConfig
 12  Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
     
-    If gameConfig Is Nothing Then
-        Err.Raise vbObjectError + 998, "ResetGame", _
-            "No game config found for sheet: " & wsGame.Name
-    End If
-    
     ' Initialize DataCache (pass sheet name to avoid ActiveSheet dependency)
 13  Dim dataSheet As Worksheet
 14  Set dataSheet = registry.GetGameDataSheet(wsGame.Name)
 15  If Not dataSheet Is Nothing Then
 16      DataCacheInstance().Initialize dataSheet
-17  Else
-        ' DataCache needs a sheet even if it's empty/minimal
-        MsgBox "Warning: No data sheet found for " & wsGame.Name & vbCrLf & _
-               "Config specifies: " & gameConfig.DataSheetName, vbExclamation
     End If
 
 18  ApplySpriteDefinitionsForSheet wsGame
@@ -183,12 +164,17 @@ Private Sub StartGame()
     Set wsGame = GetGameWorksheet()
     wsGame.Activate
     
-    ' Initialize DataCache from Data sheet (pass sheet name to avoid ActiveSheet dependency)
-    DataCacheInstance().Initialize registry.GetGameDataSheet(wsGame.Name)
-
     ' Load and apply game configuration
     Dim gameConfig As IGameConfig
     Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
+    
+    ' Initialize DataCache from Data sheet (pass sheet name to avoid ActiveSheet dependency)
+    Dim dataSheet As Worksheet
+    Set dataSheet = registry.GetGameDataSheet(wsGame.Name)
+    If Not dataSheet Is Nothing Then
+        DataCacheInstance().Initialize dataSheet
+    End If
+
     If Not gameConfig Is Nothing Then
         registry.ApplyConfig gameConfig
     End If
