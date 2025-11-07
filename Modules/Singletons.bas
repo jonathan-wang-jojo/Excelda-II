@@ -9,9 +9,7 @@ Option Explicit
 
 Private m_GameState As GameState
 Private m_ActionManager As ActionManager
-Private m_EnemyManager As EnemyManager
 Private m_SpriteManager As SpriteManager
-Private m_FriendlyManager As FriendlyManager
 Private m_ObjectManager As ObjectManager
 Private m_SpecialEventManager As SpecialEventManager
 Private m_SceneManager As SceneManager
@@ -39,15 +37,6 @@ Public Function ActionManagerInstance() As ActionManager
     Set ActionManagerInstance = m_ActionManager
 End Function
 
-'------------------------------- EnemyManager -------------------------------
-Public Function EnemyManagerInstance() As EnemyManager
-    If m_EnemyManager Is Nothing Then
-        Set m_EnemyManager = New EnemyManager
-        m_EnemyManager.Initialize
-    End If
-    Set EnemyManagerInstance = m_EnemyManager
-End Function
-
 '------------------------------- SpriteManager -------------------------------
 Public Function SpriteManagerInstance() As SpriteManager
     If m_SpriteManager Is Nothing Then
@@ -55,15 +44,6 @@ Public Function SpriteManagerInstance() As SpriteManager
         m_SpriteManager.Initialize
     End If
     Set SpriteManagerInstance = m_SpriteManager
-End Function
-
-'------------------------------- FriendlyManager -------------------------------
-Public Function FriendlyManagerInstance() As FriendlyManager
-    If m_FriendlyManager Is Nothing Then
-        Set m_FriendlyManager = New FriendlyManager
-        m_FriendlyManager.Initialize
-    End If
-    Set FriendlyManagerInstance = m_FriendlyManager
 End Function
 
 '------------------------------- ObjectManager -------------------------------
@@ -139,9 +119,7 @@ End Function
 Public Sub ResetAllManagers()
     If Not m_GameState Is Nothing Then m_GameState.Reset
     If Not m_ActionManager Is Nothing Then m_ActionManager.Reset
-    If Not m_EnemyManager Is Nothing Then m_EnemyManager.Reset
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Reset
-    If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Reset
     If Not m_ObjectManager Is Nothing Then
         m_ObjectManager.Reset
         m_ObjectManager.ResetObjects "All"
@@ -169,9 +147,7 @@ End Sub
 Public Sub DestroyAllManagers()
     If Not m_GameState Is Nothing Then m_GameState.Destroy: Set m_GameState = Nothing
     If Not m_ActionManager Is Nothing Then m_ActionManager.Destroy: Set m_ActionManager = Nothing
-    If Not m_EnemyManager Is Nothing Then m_EnemyManager.Destroy: Set m_EnemyManager = Nothing
     If Not m_SpriteManager Is Nothing Then m_SpriteManager.Destroy: Set m_SpriteManager = Nothing
-    If Not m_FriendlyManager Is Nothing Then m_FriendlyManager.Destroy: Set m_FriendlyManager = Nothing
     If Not m_ObjectManager Is Nothing Then m_ObjectManager.Destroy: Set m_ObjectManager = Nothing
     If Not m_SpecialEventManager Is Nothing Then m_SpecialEventManager.Destroy: Set m_SpecialEventManager = Nothing
     If Not m_SceneManager Is Nothing Then m_SceneManager.Destroy: Set m_SceneManager = Nothing

@@ -215,11 +215,9 @@ End Sub
 Private Sub RegisterSwordHits(ByVal swordFrame As Shape)
     If swordFrame Is Nothing Then Exit Sub
 
-    Dim enemyManager As EnemyManager
-    Set enemyManager = EnemyManagerInstance()
-    If Not enemyManager Is Nothing Then
-        enemyManager.HandleSwordHit swordFrame
-    End If
+    ' TODO: Re-implement sword hit detection using EntityManager
+    ' Legacy EnemyManager removed - needs migration to Entity/EntityManager pattern
+    ' For now, only object hits work (breakable pots, etc.)
 
     Dim objectManager As ObjectManager
     Set objectManager = ObjectManagerInstance()

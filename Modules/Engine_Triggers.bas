@@ -59,14 +59,9 @@ Sub EnemyTrigger(triggerCode As String)
         Case Else: Exit Sub
     End Select
     
-    ' Get data row and spawn
-    Dim dataRow As Long
-    dataRow = FindEnemyDataRow(enemyName)
-    If dataRow = 0 Or slotNumber < 1 Or slotNumber > 4 Then Exit Sub
-    
-    Dim manager As EnemyManager
-    Set manager = EnemyManagerInstance()
-    manager.SpawnEnemy enemyName, slotNumber, dataRow, cellAddress
+    ' TODO: Re-implement enemy spawning using EntityManager
+    ' Old EnemyManager system has been removed - migrate to Entity/EntityManager pattern
+    Debug.Print "SpawnEnemyTrigger: Legacy enemy system removed - needs migration to EntityManager"
 End Sub
 
 Private Function FindEnemyDataRow(enemyType As String) As Long
@@ -100,14 +95,9 @@ End Function
 '###################################################################################
 '                              ENEMY RESET FUNCTIONS
 '###################################################################################
-' Simplified - just delegates to EnemyManager
+' TODO: Re-implement using EntityManager - Legacy EnemyManager removed
 
 Sub ResetAllEnemies()
-    ' Reset all enemies through the EnemyManager
-    Dim manager As EnemyManager
-    Set manager = EnemyManagerInstance()
-    
-    If Not manager Is Nothing Then
-        manager.Reset
-    End If
+    ' TODO: Reset enemies through EntityManager when implemented
+    Debug.Print "ResetAllEnemies: Legacy enemy system removed - needs migration to EntityManager"
 End Sub

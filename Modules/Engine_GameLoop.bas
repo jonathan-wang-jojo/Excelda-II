@@ -10,7 +10,6 @@ Private Declare PtrSafe Function GetKeyState Lib "User32.dll" (ByVal nVirtKey As
 Private m_GameState As GameState
 Private m_SpriteManager As SpriteManager
 Private m_ActionManager As ActionManager
-Private m_EnemyManager As EnemyManager
 Private m_SceneManager As SceneManager
 Private m_IsRunning As Boolean
 Private m_MoveBlocked As Boolean
@@ -63,13 +62,13 @@ Public Sub ContinueGameOnSheet(ByVal sheetName As String)
     ContinueGame
 End Sub
 
-Private Function GetActiveSheetName() As String
-    GetActiveSheetName = IIf(m_CustomGameSheet <> vbNullString, m_CustomGameSheet, SHEET_GAME)
-End Function
+'═══════════════════════════════════════════════════════════════════════════════
+' HELPER FUNCTIONS
+'═══════════════════════════════════════════════════════════════════════════════
 
 Private Function GetGameWorksheet() As Worksheet
     Dim sheetName As String
-    sheetName = GetActiveSheetName()
+    sheetName = IIf(m_CustomGameSheet <> vbNullString, m_CustomGameSheet, SHEET_GAME)
 
     On Error Resume Next
     Set GetGameWorksheet = Sheets(sheetName)
@@ -81,75 +80,111 @@ Private Function GetGameWorksheet() As Worksheet
     End If
 End Function
 
-Private Sub ResetGame(Optional ByVal startCell As String = "")
-1   On Error GoTo ResetError
-
-2   Dim prevUpdating As Boolean
-3   prevUpdating = Application.ScreenUpdating
-4   Application.ScreenUpdating = False
-
-5   InitializeManagers
-
-6   Dim registry As GameRegistry
-7   Set registry = GameRegistryInstance()
-
-8   Dim wsGame As Worksheet
-9   Set wsGame = GetGameWorksheet()
-10  wsGame.Activate
-
-    ' Load game config and apply settings
-11  Dim gameConfig As IGameConfig
-12  Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
+' Common initialization logic shared by ResetGame and StartGame
+' Consolidates duplicate setup code to eliminate ~60 lines of duplication
+Private Sub InitializeGameSession(ByRef wsGame As Worksheet, ByRef gameConfig As IGameConfig, Optional ByVal startCell As String = "")
+    On Error GoTo InitError
+    
+    Dim registry As GameRegistry
+    Set registry = GameRegistryInstance()
+    
+    ' Activate worksheet
+    Set wsGame = GetGameWorksheet()
+    wsGame.Activate
+    
+    ' Load game config
+    Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
     
     ' Initialize DataCache (pass sheet name to avoid ActiveSheet dependency)
-13  Dim dataSheet As Worksheet
-14  Set dataSheet = registry.GetGameDataSheet(wsGame.Name)
-15  If Not dataSheet Is Nothing Then
-16      DataCacheInstance().Initialize dataSheet
+    Dim dataSheet As Worksheet
+    Set dataSheet = registry.GetGameDataSheet(wsGame.Name)
+    If Not dataSheet Is Nothing Then
+        DataCacheInstance().Initialize dataSheet
+    End If
+    
+    ' Apply sprite definitions for this sheet
+    ApplySpriteDefinitionsForSheet wsGame
+    
+    ' Find and bind player sprite
+    Dim spriteName As String
+    spriteName = FindPlayerSprite(wsGame.Name)
+    If spriteName = vbNullString Then
+        Err.Raise vbObjectError + 302, "InitializeGameSession", _
+            "Player sprite not found on sheet " & wsGame.Name
+    End If
+    
+    m_SpriteManager.BindPlayerSprite wsGame.Name, spriteName
+    m_SpriteManager.UpdateVisibility
+    m_ActionManager.Initialize
+    
+    ' Activate scene for this sheet
+    m_SceneManager.ActivateSceneBySheet wsGame.Name
+    
+    ' Load game state from Data sheet
+    m_GameState.RefreshFromDataSheet
+    ApplySheetSpecificTuning wsGame
+    m_GameState.CurrentScreen = wsGame.Name
+    
+    ' Set start location if provided
+    If startCell <> vbNullString Then
+        m_PendingStartCell = startCell
+    End If
+    
+    Exit Sub
+    
+InitError:
+    Err.Raise Err.Number, "InitializeGameSession", Err.Description
+End Sub
+
+'═══════════════════════════════════════════════════════════════════════════════
+' INITIALIZATION
+'═══════════════════════════════════════════════════════════════════════════════
+
+Private Sub ResetGame(Optional ByVal startCell As String = "")
+    On Error GoTo ResetError
+
+    Dim prevUpdating As Boolean
+    prevUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+
+    InitializeManagers
+
+    ' Compute start location
+    Dim registry As GameRegistry
+    Set registry = GameRegistryInstance()
+    
+    Dim wsGame As Worksheet
+    Dim gameConfig As IGameConfig
+    Dim startAddress As String
+    startAddress = Trim$(startCell)
+    
+    ' Use common initialization
+    InitializeGameSession wsGame, gameConfig, startAddress
+    
+    ' Reset-specific initialization
+    m_GameState.MoveDir = vbNullString
+    m_GameState.IsFalling = False
+
+    ' Apply pending start state and align viewport
+    If startAddress = vbNullString And Not gameConfig Is Nothing Then
+        startAddress = Trim$(gameConfig.StartCell)
+    End If
+    If startAddress = vbNullString Then
+        startAddress = wsGame.Cells(1, 1).Address(False, False)
+    End If
+    
+    m_PendingStartCell = startAddress
+    ApplyPendingStartState
+    m_SpriteManager.ResyncFramePositions
+
+    If Not gameConfig Is Nothing Then
+        registry.ApplyConfig gameConfig
     End If
 
-18  ApplySpriteDefinitionsForSheet wsGame
+    AlignViewport
 
-19  Dim startAddress As String
-20  startAddress = Trim$(startCell)
-21  If startAddress = vbNullString And Not gameConfig Is Nothing Then
-22      startAddress = Trim$(gameConfig.StartCell)
-23  End If
-24  If startAddress = vbNullString Then
-25      startAddress = wsGame.Cells(1, 1).Address(False, False)
-26  End If
-
-27  Dim spriteName As String
-28  spriteName = FindPlayerSprite(wsGame.Name)
-29  If spriteName = vbNullString Then
-30      Err.Raise vbObjectError + 302, "ResetGame", _
-            "Player sprite not found on sheet " & wsGame.Name
-31  End If
-
-32  m_SpriteManager.BindPlayerSprite wsGame.Name, spriteName
-33  m_SpriteManager.UpdateVisibility
-34  m_ActionManager.Initialize
-35  m_EnemyManager.Initialize
-36  m_SceneManager.ActivateSceneBySheet wsGame.Name
-
-37  m_GameState.RefreshFromDataSheet
-38  ApplySheetSpecificTuning wsGame
-39  m_GameState.CurrentScreen = wsGame.Name
-40  m_GameState.MoveDir = vbNullString
-41  m_GameState.IsFalling = False
-
-42  m_PendingStartCell = startAddress
-43  ApplyPendingStartState
-44  m_SpriteManager.ResyncFramePositions
-
-45  If Not gameConfig Is Nothing Then
-46      registry.ApplyConfig gameConfig
-47  End If
-
-48  AlignViewport
-
-49  Application.ScreenUpdating = prevUpdating
-50  Exit Sub
+    Application.ScreenUpdating = prevUpdating
+    Exit Sub
 
 ResetError:
     Application.ScreenUpdating = prevUpdating
@@ -169,30 +204,15 @@ Private Sub StartGame()
     Set registry = GameRegistryInstance()
     
     Dim wsGame As Worksheet
-    Set wsGame = GetGameWorksheet()
-    wsGame.Activate
-    
-    ' Load and apply game configuration
     Dim gameConfig As IGameConfig
-    Set gameConfig = registry.GetConfigBySheet(wsGame.Name)
     
-    ' Initialize DataCache from Data sheet (pass sheet name to avoid ActiveSheet dependency)
-    Dim dataSheet As Worksheet
-    Set dataSheet = registry.GetGameDataSheet(wsGame.Name)
-    If Not dataSheet Is Nothing Then
-        DataCacheInstance().Initialize dataSheet
-    End If
+    ' Use common initialization (pass pending start cell if exists)
+    InitializeGameSession wsGame, gameConfig, m_PendingStartCell
 
+    ' Apply configuration
     If Not gameConfig Is Nothing Then
         registry.ApplyConfig gameConfig
     End If
-
-    ApplySpriteDefinitionsForSheet wsGame
-
-    Dim screen As String
-    screen = wsGame.Name
-
-    m_SceneManager.ActivateSceneBySheet screen
 
     EnterGameMode
     DisableExcelNavigation
@@ -206,17 +226,6 @@ Private Sub StartGame()
         DataCacheInstance().SetValue RANGE_MOVE_DIR, direction
     End If
     
-    Dim spriteName As String
-    spriteName = FindPlayerSprite(screen)
-    If spriteName = vbNullString Then Err.Raise vbObjectError + 1, "StartGame", "Player sprite not found"
-    
-    m_SpriteManager.BindPlayerSprite screen, spriteName
-    m_SpriteManager.UpdateVisibility
-    m_ActionManager.Initialize
-    
-    m_GameState.RefreshFromDataSheet
-    ApplySheetSpecificTuning wsGame
-    m_GameState.CurrentScreen = screen
     m_GameState.MoveDir = direction
     m_SpriteManager.ResyncFramePositions
     
@@ -348,11 +357,9 @@ Private Sub FixedUpdate(ByVal deltaTime As Double)
     HandleInput deltaTime
     HandleTriggers
     If Not m_IsRunning Then Exit Sub
-    HandleEnemies
     UpdateSprites deltaTime
-    UpdateFriendlies deltaTime
     
-    ' Update new entity system (runs alongside old systems during migration)
+    ' Update entity system (handles all entities: enemies, NPCs, pickups)
     EntityManagerInstance.UpdateAll deltaTime
 End Sub
 
@@ -370,18 +377,9 @@ Private Sub Render(ByVal alpha As Double)
     On Error GoTo 0
 End Sub
 
-'###################################################################################
-'                              LEGACY UPDATE WRAPPER
-'###################################################################################
-' Kept for backward compatibility - routes to FixedUpdate
-'###################################################################################
-Private Sub Update(ByVal deltaSeconds As Double)
-    FixedUpdate deltaSeconds
-End Sub
-
-'###################################################################################
-'                              INPUT HANDLING
-'###################################################################################
+'═══════════════════════════════════════════════════════════════════════════════
+' INPUT HANDLING
+'═══════════════════════════════════════════════════════════════════════════════
 Private Sub HandleInput(ByVal deltaSeconds As Double)
     ' Input polling moved here, DoEvents handled in main loop
     
@@ -496,12 +494,6 @@ Private Sub UpdateSprites(ByVal deltaSeconds As Double)
     ' NOTE: Do NOT clear MoveDir here - HandleInput manages direction lifecycle
     ' Clearing here causes "blinking" movement (1 frame per key press instead of continuous)
     m_MoveBlocked = False
-End Sub
-
-Private Sub UpdateFriendlies(ByVal deltaSeconds As Double)
-    Dim manager As FriendlyManager
-    Set manager = FriendlyManagerInstance()
-    manager.Tick deltaSeconds
 End Sub
 
 Private Function DirectionBlocked(ByVal direction As String, ByVal baseCell As Range) As Boolean
@@ -641,7 +633,6 @@ Private Sub InitializeManagers()
     Set m_GameState = GameStateInstance()
     Set m_SpriteManager = SpriteManagerInstance()
     Set m_ActionManager = ActionManagerInstance()
-    Set m_EnemyManager = EnemyManagerInstance()
     Set m_SceneManager = SceneManagerInstance()
 End Sub
 
@@ -775,24 +766,8 @@ Private Sub HandleEndScreenTrigger()
 End Sub
 
 '###################################################################################
-'                              Enemy Management
+'                              PENDING STATE APPLICATION
 '###################################################################################
-
-Private Sub HandleEnemies()
-    If m_EnemyManager Is Nothing Or m_SpriteManager Is Nothing Then Exit Sub
-
-    Dim i As Long
-    For i = 1 To 4
-        On Error Resume Next
-        m_EnemyManager.ProcessEnemy i, m_SpriteManager.PlayerSprite
-        If Err.Number <> 0 Then
-            Debug.Print "HandleEnemies ProcessEnemy error: " & Err.Description
-            Err.Clear
-            Exit For
-        End If
-        On Error GoTo 0
-    Next i
-End Sub
 
 Private Sub ApplyPendingStartState()
     Dim pending As String
@@ -813,16 +788,7 @@ Private Sub ApplyPendingStartState()
     On Error GoTo StartStateError
 
     ' Clear carried-over action assignments and overlays before relocating
-    If Not dataSheet Is Nothing Then
-        With dataSheet
-            .Range(RANGE_ACTION_C).Value = vbNullString
-            .Range(RANGE_ACTION_D).Value = vbNullString
-            .Range(RANGE_C_ITEM).Value = vbNullString
-            .Range(RANGE_D_ITEM).Value = vbNullString
-            .Range(RANGE_SHIELD_STATE).Value = vbNullString
-        End With
-    End If
-
+    ' Note: Using DataCache only - it will flush to sheet via FlushDirtyValues()
     If Not cache Is Nothing Then
         cache.SetValue RANGE_ACTION_C, vbNullString
         cache.SetValue RANGE_ACTION_D, vbNullString
@@ -836,21 +802,8 @@ Private Sub ApplyPendingStartState()
     ' Apply batched sprite position changes immediately
     BatchRendererInstance().ApplyBatch
 
-    ' Batch write to minimize COM calls
-    If dataSheet Is Nothing Then
-        Set dataSheet = GameRegistryInstance().GetGameDataSheet()
-    End If
-
-    If Not dataSheet Is Nothing Then
-        With dataSheet
-            .Range(RANGE_PREVIOUS_CELL).Value = gs.PlayerCellAddress
-            .Range(RANGE_PREVIOUS_SCROLL & ":" & RANGE_SHIELD_STATE).ClearContents
-            .Range(RANGE_FALLING).Value = "N"
-            .Range(RANGE_FALL_SEQUENCE).Value = "N"
-        End With
-    End If
-
     ' Keep cache in sync with initial spawn state to avoid legacy fall/bounce flags
+    ' Note: Using DataCache only - it will flush to sheet via FlushDirtyValues()
     If Not cache Is Nothing Then
         cache.SetValue RANGE_PREVIOUS_CELL, gs.PlayerCellAddress
         cache.SetValue RANGE_PREVIOUS_SCROLL, vbNullString

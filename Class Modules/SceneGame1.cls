@@ -541,7 +541,9 @@ Private Sub SetupPC()
     ResetBushes "All"
     EnemyTrigger "XXXXXXETGD01DEJ503"
     If dataSheet.Range("Z4").Value = "" Then
-        ActiveSheet.Range(ActiveSheet.Range("EW507"), ActiveSheet.Range("EW507").Offset(6, 10)).Value = "XXXXXXSE0001XX"
+        Dim ws As Worksheet
+        Set ws = Sheets(Me.SheetName)
+        ws.Range(ws.Range("EW507"), ws.Range("EW507").Offset(6, 10)).Value = "XXXXXXSE0001XX"
     End If
 End Sub
 
@@ -559,7 +561,9 @@ Private Sub SetupSB()
     
     ResetBushes "All"
     If dataSheet.Range("Z3").Value <> "Y" Then
-        ActiveSheet.Range(ActiveSheet.Range("CQ613"), ActiveSheet.Range("CQ613").Offset(1, 7)).Value = "XXXXXXSE0003XX"
+        Dim ws As Worksheet
+        Set ws = Sheets(Me.SheetName)
+        ws.Range(ws.Range("CQ613"), ws.Range("CQ613").Offset(1, 7)).Value = "XXXXXXSE0003XX"
     End If
     PositionObj "TarinD", "DG599", "B"
     EnemyTrigger "XXXXXXETTA02DDG599"
